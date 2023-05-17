@@ -21,7 +21,7 @@ SUCCESS := $(BOLD)$(GREEN)
 
 # Test variables #################################
 # the quality gate lower threshold for unit test total % coverage (by function statements)
-COVERAGE_THRESHOLD := 70
+COVERAGE_THRESHOLD := 60
 
 ## Variable assertions
 

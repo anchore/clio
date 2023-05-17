@@ -28,6 +28,7 @@ type Application interface {
 	Setup(cfgs ...any) func(cmd *cobra.Command, args []string) error
 	Run(ctx context.Context, errs <-chan error) error
 	State() State
+	Config() Config
 }
 
 type application struct {
@@ -49,6 +50,10 @@ func nonNil(a ...any) []any {
 		}
 	}
 	return ret
+}
+
+func (a application) Config() Config {
+	return a.config
 }
 
 func (a application) State() State {
