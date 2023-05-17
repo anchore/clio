@@ -15,7 +15,7 @@ import (
 )
 
 var _ fangs.PostLoad = (*LoggingConfig)(nil)
-var _ LoggerConstructor = newLogger
+var _ LoggerConstructor = DefaultLogger
 
 type terminalDetector interface {
 	StdoutIsTerminal() bool
@@ -45,6 +45,26 @@ type LoggingConfig struct {
 
 	// not implemented upstream
 	// Structured   bool         `yaml:"structured" json:"structured" mapstructure:"structured"`                        // show all log entries as JSON formatted strings
+}
+
+func DefaultLogger(clioCfg Config) (logger.Logger, error) {
+	cfg := clioCfg.Log
+	if cfg == nil {
+		return discard.New(), nil
+	}
+
+	l, err := logrus.New(
+		logrus.Config{
+			EnableConsole: cfg.Verbosity > 0 && !cfg.Quiet,
+			FileLocation:  cfg.FileLocation,
+			Level:         cfg.Level,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return l, nil
 }
 
 func (l *LoggingConfig) PostLoad() error {
@@ -137,24 +157,4 @@ func isPipedInput(stdin fs.File) (bool, error) {
 func (l *LoggingConfig) AddFlags(flags *pflag.FlagSet) {
 	flags.CountVarP(&l.Verbosity, "verbose", "v", "increase verbosity (-v = info, -vv = debug)")
 	flags.BoolVarP(&l.Quiet, "quiet", "q", false, "suppress all logging output")
-}
-
-func newLogger(clioCfg Config) (logger.Logger, error) {
-	cfg := clioCfg.Log
-	if cfg == nil {
-		return discard.New(), nil
-	}
-
-	l, err := logrus.New(
-		logrus.Config{
-			EnableConsole: cfg.Verbosity > 0 && !cfg.Quiet,
-			FileLocation:  cfg.FileLocation,
-			Level:         cfg.Level,
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return l, nil
 }

@@ -2,6 +2,10 @@
 
 An easy way to bootstrap your application with batteries included.
 
+## Status
+
+**_Consider this project to be in alpha. The API is not stable and may change at any time.**_
+
 ## What is included?
 - Pairs well with [cobra](github.com/spf13/cobra) and [viper](github.com/spf13/viper) via [fangs](github.com/anchore/fangs), covering CLI arg parsing and config file + env var loading.
 - Provides an event bus via [partybus](github.com/wagoodman/go-partybus), enabling visibility deep in your execution stack as to what is happening.

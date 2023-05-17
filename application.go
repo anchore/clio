@@ -122,7 +122,7 @@ func (a application) Run(ctx context.Context, errs <-chan error) error {
 func (a *application) setupLogger(allConfigs ...any) error {
 	cx := a.config.LoggerConstructor
 	if cx == nil {
-		cx = newLogger
+		cx = DefaultLogger
 	}
 
 	lgr, err := cx(a.config)

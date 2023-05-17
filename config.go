@@ -38,7 +38,7 @@ func NewConfig(name, version string) *Config {
 			fangs.FindInHomeDir,
 			fangs.FindInXDG,
 		},
-		LoggerConstructor: newLogger,
+		LoggerConstructor: DefaultLogger,
 		BusConstructor:    newBus,
 		UIConstructor:     newUI,
 		FangsConfig:       fangs.NewConfig(name),
