@@ -28,9 +28,9 @@ func (s stockTerminalDetector) StderrIsTerminal() bool {
 	return term.IsTerminal(int(os.Stderr.Fd()))
 }
 
-type LoggerConstructor func(*Config) (logger.Logger, error)
+type LoggerConstructor func(Config) (logger.Logger, error)
 
-func DefaultLogger(clioCfg *Config) (logger.Logger, error) {
+func DefaultLogger(clioCfg Config) (logger.Logger, error) {
 	cfg := clioCfg.Log
 	if cfg == nil {
 		return discard.New(), nil

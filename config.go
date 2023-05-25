@@ -51,7 +51,7 @@ func (c *Config) WithBusConstructor(constructor BusConstructor) *Config {
 }
 
 func (c *Config) WithNoBus() *Config {
-	c.BusConstructor = func(config *Config) *partybus.Bus {
+	c.BusConstructor = func(config Config) *partybus.Bus {
 		return nil
 	}
 	return c
@@ -84,7 +84,7 @@ func (c *Config) WithLoggingConfig(cfg LoggingConfig) *Config {
 
 func (c *Config) WithNoLogging() *Config {
 	c.Log = nil
-	c.LoggerConstructor = func(config *Config) (logger.Logger, error) {
+	c.LoggerConstructor = func(config Config) (logger.Logger, error) {
 		return discard.New(), nil
 	}
 	return c

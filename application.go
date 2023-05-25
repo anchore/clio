@@ -16,7 +16,7 @@ import (
 	"github.com/anchore/go-logger"
 )
 
-type Initializer func(cfg *Config, state State) error
+type Initializer func(cfg Config, state State) error
 
 type State struct {
 	Bus          *partybus.Bus
@@ -27,7 +27,7 @@ type State struct {
 
 type Application interface {
 	AddConfigs(cfgs ...any)
-	Config() *Config
+	Config() Config
 	Run(ctx context.Context, errs <-chan error) error
 	Setup(cfgs ...any) func(cmd *cobra.Command, args []string) error
 	SetupCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command
@@ -38,11 +38,11 @@ type Application interface {
 
 type application struct {
 	configs []any
-	config  *Config
+	config  Config
 	state   State
 }
 
-func New(cfg *Config) Application {
+func New(cfg Config) Application {
 	return &application{
 		config: cfg,
 	}
@@ -62,7 +62,7 @@ func (a *application) AddConfigs(cfgs ...any) {
 	a.configs = append(a.configs, cfgs...)
 }
 
-func (a application) Config() *Config {
+func (a application) Config() Config {
 	return a.config
 }
 
@@ -72,7 +72,7 @@ func (a application) State() State {
 
 func (a *application) Setup(cfgs ...any) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		allConfigs := []any{a.config}
+		allConfigs := []any{&a.config}
 		allConfigs = append(allConfigs, a.config.AdditionalConfigs...)
 		allConfigs = append(allConfigs, cfgs...)
 		allConfigs = nonNil(allConfigs...)
@@ -106,7 +106,7 @@ func (a *application) Setup(cfgs ...any) func(cmd *cobra.Command, args []string)
 	}
 }
 
-func (a *application) Run(ctx context.Context, errs <-chan error) error {
+func (a application) Run(ctx context.Context, errs <-chan error) error {
 	if a.config.Dev != nil {
 		switch a.config.Dev.Profile {
 		case CPUProfile:
@@ -140,7 +140,7 @@ func (a *application) setupLogger() error {
 	return nil
 }
 
-func logVersion(cfg *Config, log logger.Logger) {
+func logVersion(cfg Config, log logger.Logger) {
 	if cfg.Version == "" {
 		log.Infof(cfg.Name)
 		return
