@@ -5,7 +5,6 @@ import (
 	"io/fs"
 	"os"
 
-	"github.com/spf13/pflag"
 	"golang.org/x/term"
 
 	"github.com/anchore/fangs"
@@ -13,9 +12,6 @@ import (
 	"github.com/anchore/go-logger/adapter/discard"
 	"github.com/anchore/go-logger/adapter/logrus"
 )
-
-var _ fangs.PostLoad = (*LoggingConfig)(nil)
-var _ LoggerConstructor = DefaultLogger
 
 type terminalDetector interface {
 	StdoutIsTerminal() bool
@@ -32,22 +28,9 @@ func (s stockTerminalDetector) StderrIsTerminal() bool {
 	return term.IsTerminal(int(os.Stderr.Fd()))
 }
 
-type LoggerConstructor func(Config) (logger.Logger, error)
+type LoggerConstructor func(*Config) (logger.Logger, error)
 
-// LoggingConfig contains all logging-related configuration options available to the user via the application config.
-type LoggingConfig struct {
-	Quiet        bool         `yaml:"quiet" json:"quiet"` // -q, indicates to not show any status output to stderr
-	Verbosity    int          `yaml:"-" json:"-" `        // -v or -vv , controlling which UI (ETUI vs logging) and what the log level should be
-	Level        logger.Level `yaml:"level" json:"level"` // the log level string hint
-	FileLocation string       `yaml:"file" json:"file"`   // the file path to write logs to
-
-	terminalDetector terminalDetector // for testing
-
-	// not implemented upstream
-	// Structured   bool         `yaml:"structured" json:"structured" mapstructure:"structured"`                        // show all log entries as JSON formatted strings
-}
-
-func DefaultLogger(clioCfg Config) (logger.Logger, error) {
+func DefaultLogger(clioCfg *Config) (logger.Logger, error) {
 	cfg := clioCfg.Log
 	if cfg == nil {
 		return discard.New(), nil
@@ -66,6 +49,24 @@ func DefaultLogger(clioCfg Config) (logger.Logger, error) {
 
 	return l, nil
 }
+
+var _ LoggerConstructor = DefaultLogger
+
+// LoggingConfig contains all logging-related configuration options available to the user via the application config.
+type LoggingConfig struct {
+	Quiet        bool         `yaml:"quiet" json:"quiet"` // -q, indicates to not show any status output to stderr
+	Verbosity    int          `yaml:"-" json:"-" `        // -v or -vv , controlling which UI (ETUI vs logging) and what the log level should be
+	Level        logger.Level `yaml:"level" json:"level"` // the log level string hint
+	FileLocation string       `yaml:"file" json:"file"`   // the file path to write logs to
+
+	terminalDetector terminalDetector // for testing
+
+	// not implemented upstream
+	// Structured   bool         `yaml:"structured" json:"structured" mapstructure:"structured"`                        // show all log entries as JSON formatted strings
+}
+
+var _ fangs.FlagAdder = (*LoggingConfig)(nil)
+var _ fangs.PostLoad = (*LoggingConfig)(nil)
 
 func (l *LoggingConfig) PostLoad() error {
 	lvl, err := l.selectLevel()
@@ -154,7 +155,7 @@ func isPipedInput(stdin fs.File) (bool, error) {
 	return fi.Mode()&os.ModeNamedPipe != 0, nil
 }
 
-func (l *LoggingConfig) AddFlags(flags *pflag.FlagSet) {
+func (l *LoggingConfig) AddFlags(flags fangs.FlagSet) {
 	flags.CountVarP(&l.Verbosity, "verbose", "v", "increase verbosity (-v = info, -vv = debug)")
-	flags.BoolVarP(&l.Quiet, "quiet", "q", false, "suppress all logging output")
+	flags.BoolVarP(&l.Quiet, "quiet", "q", "suppress all logging output")
 }

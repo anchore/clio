@@ -11,7 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/anchore/fangs"
 	"github.com/anchore/go-logger"
+	"github.com/anchore/go-logger/adapter/discard"
 )
 
 func Test_newLogger(t *testing.T) {
@@ -63,7 +65,7 @@ func Test_newLogger(t *testing.T) {
 			if tt.wantErr == nil {
 				tt.wantErr = require.NoError
 			}
-			log, err := DefaultLogger(Config{Log: tt.cfg})
+			log, err := DefaultLogger(&Config{Log: tt.cfg})
 			tt.wantErr(t, err)
 			if err != nil {
 				return
@@ -90,7 +92,7 @@ func TestLoggingConfig_AddFlags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			l := &LoggingConfig{}
 			flags := pflag.NewFlagSet("test", pflag.ContinueOnError)
-			l.AddFlags(flags)
+			l.AddFlags(fangs.NewPFlagSet(discard.New(), flags))
 
 			var actual = make(map[string]string)
 			flags.VisitAll(func(flag *pflag.Flag) {
