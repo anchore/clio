@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/wagoodman/go-partybus"
 
+	"github.com/anchore/fangs"
 	"github.com/anchore/go-logger"
 	"github.com/anchore/go-logger/adapter/discard"
 )
@@ -238,41 +239,78 @@ func Test_Application_Setup(t *testing.T) {
 	}
 }
 
-func Test_indent(t *testing.T) {
-	tests := []struct {
-		name   string
-		text   string
-		indent string
-		want   string
-	}{
-		{
-			name:   "no indent",
-			text:   "single line",
-			indent: "",
-			want:   "single line",
-		},
-		{
-			name:   "single line",
-			text:   "single line",
-			indent: "  ",
-			want:   "  single line",
-		},
-		{
-			name:   "multi line",
-			text:   "multi\nline",
-			indent: "  ",
-			want:   "  multi\n  line",
-		},
-		{
-			name:   "keep trailing newline",
-			text:   "multi\nline\n\n",
-			indent: "  ",
-			want:   "  multi\n  line\n  \n",
+func Test_SetupCommand(t *testing.T) {
+	p := &persistent{}
+
+	persistentPreRunCalled := false
+	root := &cobra.Command{
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			persistentPreRunCalled = true
+			return nil
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, indent(tt.text, tt.indent))
-		})
+
+	a := New(Config{
+		Name:        "myApp",
+		Version:     "v2.4.11",
+		FangsConfig: fangs.NewConfig("myApp"),
+	})
+
+	root = a.SetupPersistentCommand(root, p)
+
+	preRunCalled := false
+	sub := &cobra.Command{
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			preRunCalled = true
+			return nil
+		},
 	}
+
+	f := &f1{}
+	sub = a.SetupCommand(sub, f)
+
+	root.AddCommand(sub)
+
+	usage := sub.UsageString()
+
+	assert.Contains(t, usage, "--config")
+	assert.Contains(t, usage, "--verbosity")
+	assert.Contains(t, usage, "--output")
+	assert.Contains(t, usage, "--extras")
+	assert.Contains(t, usage, "--online")
+
+	err := root.PersistentPreRunE(sub, []string{})
+	require.NoError(t, err)
+
+	err = sub.PreRunE(sub, []string{})
+	require.NoError(t, err)
+
+	assert.True(t, persistentPreRunCalled)
+	assert.True(t, preRunCalled)
+}
+
+type persistent struct {
+	Config    string
+	Verbosity int
+}
+
+var _ fangs.FlagAdder = (*persistent)(nil)
+
+func (t *persistent) AddFlags(flags fangs.FlagSet) {
+	flags.StringVarP(&t.Config, "config", "c", "the persistent config")
+	flags.CountVarP(&t.Verbosity, "verbosity", "v", "the persistent verbosity")
+}
+
+type f1 struct {
+	Output string
+	Extras bool
+	Online *bool
+}
+
+var _ fangs.FlagAdder = (*f1)(nil)
+
+func (t *f1) AddFlags(flags fangs.FlagSet) {
+	flags.StringVarP(&t.Output, "output", "o", "the flag output")
+	flags.BoolVarP(&t.Extras, "extras", "", "the flag extras")
+	flags.BoolPtrVarP(&t.Online, "online", "", "the flag online")
 }

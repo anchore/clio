@@ -8,6 +8,7 @@ import (
 	"github.com/gookit/color"
 	"github.com/pkg/profile"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/wagoodman/go-partybus"
 	"gopkg.in/yaml.v3"
 
@@ -25,15 +26,20 @@ type State struct {
 }
 
 type Application interface {
-	Setup(cfgs ...any) func(cmd *cobra.Command, args []string) error
-	Run(ctx context.Context, errs <-chan error) error
-	State() State
+	AddConfigs(cfgs ...any)
 	Config() Config
+	Run(ctx context.Context, errs <-chan error) error
+	Setup(cfgs ...any) func(cmd *cobra.Command, args []string) error
+	SetupCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command
+	SetupPersistentCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command
+	State() State
+	SummarizeConfig(cmd *cobra.Command) string
 }
 
 type application struct {
-	config Config
-	state  State
+	configs []any
+	config  Config
+	state   State
 }
 
 func New(cfg Config) Application {
@@ -52,6 +58,10 @@ func nonNil(a ...any) []any {
 	return ret
 }
 
+func (a *application) AddConfigs(cfgs ...any) {
+	a.configs = append(a.configs, cfgs...)
+}
+
 func (a application) Config() Config {
 	return a.config
 }
@@ -62,7 +72,7 @@ func (a application) State() State {
 
 func (a *application) Setup(cfgs ...any) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		var allConfigs []any
+		allConfigs := []any{&a.config}
 		allConfigs = append(allConfigs, a.config.AdditionalConfigs...)
 		allConfigs = append(allConfigs, cfgs...)
 		allConfigs = nonNil(allConfigs...)
@@ -71,23 +81,14 @@ func (a *application) Setup(cfgs ...any) func(cmd *cobra.Command, args []string)
 			return fmt.Errorf("invalid application config: %v", err)
 		}
 
-		if a.config.Log != nil {
-			if err := fangs.LoadAt(a.config.FangsConfig, cmd, "log", a.config.Log); err != nil {
-				return fmt.Errorf("invalid log config: %v", err)
-			}
-			allConfigs = append(allConfigs, map[string]any{"log": a.config.Log})
-		}
-
-		if a.config.Dev != nil {
-			if err := fangs.LoadAt(a.config.FangsConfig, cmd, "dev", a.config.Dev); err != nil {
-				return fmt.Errorf("invalid dev config: %v", err)
-			}
-			allConfigs = append(allConfigs, map[string]any{"dev": a.config.Dev})
-		}
-
-		if err := a.setupLogger(allConfigs...); err != nil {
+		if err := a.setupLogger(); err != nil {
 			return fmt.Errorf("unable to setup logger: %w", err)
 		}
+
+		// show the app version and configuration...
+		logVersion(a.config, a.state.Logger)
+
+		logConfiguration(a.state.Logger, allConfigs...)
 
 		a.setupBus()
 
@@ -124,7 +125,7 @@ func (a application) Run(ctx context.Context, errs <-chan error) error {
 	)
 }
 
-func (a *application) setupLogger(allConfigs ...any) error {
+func (a *application) setupLogger() error {
 	cx := a.config.LoggerConstructor
 	if cx == nil {
 		cx = DefaultLogger
@@ -136,10 +137,6 @@ func (a *application) setupLogger(allConfigs ...any) error {
 	}
 
 	a.state.Logger = lgr
-
-	// show the app version and configuration...
-	logVersion(a.config, a.state.Logger)
-	logConfiguration(a.state.Logger, allConfigs...)
 	return nil
 }
 
@@ -158,7 +155,7 @@ func logVersion(cfg Config, log logger.Logger) {
 func logConfiguration(log logger.Logger, cfgs ...any) {
 	var sb strings.Builder
 
-	for i, cfg := range cfgs {
+	for _, cfg := range cfgs {
 		if cfg == nil {
 			continue
 		}
@@ -168,9 +165,9 @@ func logConfiguration(log logger.Logger, cfgs ...any) {
 			str = stringer.String()
 		} else {
 			// yaml is pretty human friendly (at least when compared to json)
-			cfgBytes, err := yaml.Marshal(&cfgs[i])
+			cfgBytes, err := yaml.Marshal(cfg)
 			if err != nil {
-				str = fmt.Sprintf("%+v", str)
+				str = fmt.Sprintf("%+v", err)
 			} else {
 				str = string(cfgBytes)
 			}
@@ -184,7 +181,7 @@ func logConfiguration(log logger.Logger, cfgs ...any) {
 	content := sb.String()
 
 	if content != "" {
-		formatted := color.Magenta.Sprint(indent(strings.TrimSpace(content), "  "))
+		formatted := color.Magenta.Sprint(fangs.Indent(strings.TrimSpace(content), "  "))
 		log.Debugf("config:\n%+v", formatted)
 	} else {
 		log.Debug("config: (none)")
@@ -212,23 +209,49 @@ func (a *application) setupUI() error {
 	return err
 }
 
-func indent(text, indent string) string {
-	if indent == "" {
-		return text
-	}
-	if len(strings.TrimSpace(text)) == 0 {
-		return indent
-	}
-	if text[len(text)-1:] == "\n" {
-		result := ""
-		for _, j := range strings.Split(text[:len(text)-1], "\n") {
-			result += indent + j + "\n"
+func (a *application) SetupCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command {
+	return a.setupCommand(cmd, cmd.Flags(), &cmd.PreRunE, cfgs...)
+}
+
+func (a *application) SetupPersistentCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command {
+	return a.setupCommand(cmd, cmd.PersistentFlags(), &cmd.PersistentPreRunE, cfgs...)
+}
+
+func (a *application) setupCommand(cmd *cobra.Command, flags *pflag.FlagSet, fn *func(cmd *cobra.Command, args []string) error, cfgs ...any) *cobra.Command {
+	original := *fn
+	*fn = func(cmd *cobra.Command, args []string) error {
+		err := a.Setup(cfgs...)(cmd, args)
+		if err != nil {
+			return err
 		}
-		return result
+		if original != nil {
+			return original(cmd, args)
+		}
+		return nil
 	}
-	result := ""
-	for _, j := range strings.Split(strings.TrimRight(text, "\n"), "\n") {
-		result += indent + j + "\n"
+
+	cmd.SilenceUsage = true
+	cmd.SilenceErrors = true
+
+	a.AddConfigs(cfgs...)
+
+	fangs.AddFlags(a.config.FangsConfig.Logger, flags, cfgs...)
+
+	return cmd
+}
+
+func (a *application) SummarizeConfig(cmd *cobra.Command) string {
+	cfg := a.config.FangsConfig
+	separator := "-----------------------\n\n"
+	summary := separator
+	summary += fangs.SummarizeCommand(cfg, cmd, a.configs...)
+	summary += separator
+	summary += "Config Locations:\n"
+	for _, f := range fangs.SummarizeLocations(cfg) {
+		if !strings.HasSuffix(f, ".yaml") {
+			continue
+		}
+		summary += f + "\n"
 	}
-	return result[:len(result)-1]
+	return fangs.Indent(strings.TrimSuffix(summary, "\n"), "  ")
 }

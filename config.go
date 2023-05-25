@@ -1,7 +1,6 @@
 package clio
 
 import (
-	"github.com/spf13/pflag"
 	"github.com/wagoodman/go-partybus"
 
 	"github.com/anchore/fangs"
@@ -10,50 +9,35 @@ import (
 )
 
 type Config struct {
-	Name    string
-	Version string
+	Name    string `yaml:"-" json:"-" mapstructure:"-"`
+	Version string `yaml:"-" json:"-" mapstructure:"-"`
 
-	AdditionalConfigs []interface{}
-	Dev               *DevelopmentConfig
-	Log               *LoggingConfig
+	AdditionalConfigs []any              `yaml:"-" json:"-" mapstructure:"-"`
+	Log               *LoggingConfig     `yaml:"log" json:"log" mapstructure:"log"`
+	Dev               *DevelopmentConfig `yaml:"dev" json:"dev" mapstructure:"dev"`
 
-	FangsConfig   fangs.Config
-	ConfigFinders []fangs.Finder
+	FangsConfig fangs.Config `yaml:"-" mapstructure:"-"`
 
-	BusConstructor    BusConstructor
-	LoggerConstructor LoggerConstructor
-	UIConstructor     UIConstructor
+	BusConstructor    BusConstructor    `yaml:"-" json:"-" mapstructure:"-"`
+	LoggerConstructor LoggerConstructor `yaml:"-" json:"-" mapstructure:"-"`
+	UIConstructor     UIConstructor     `yaml:"-" json:"-" mapstructure:"-"`
 
-	Initializers []Initializer
+	Initializers []Initializer `yaml:"-" json:"-" mapstructure:"-"`
 }
 
 func NewConfig(name, version string) *Config {
 	return &Config{
-		Name:    name,
-		Version: version,
-		ConfigFinders: []fangs.Finder{
-			fangs.FindDirect,
-			fangs.FindInCwd,
-			fangs.FindInAppNameSubdir,
-			fangs.FindInHomeDir,
-			fangs.FindInXDG,
-		},
+		Name:              name,
+		Version:           version,
 		LoggerConstructor: DefaultLogger,
 		BusConstructor:    newBus,
 		UIConstructor:     newUI,
 		FangsConfig:       fangs.NewConfig(name),
 		Log: &LoggingConfig{
-			Level: logger.InfoLevel,
+			Level: logger.WarnLevel,
 		},
 		// note: no ui selector or dev options by default...
 	}
-}
-
-func (c Config) AddFlags(flags *pflag.FlagSet) {
-	if c.Log != nil {
-		c.Log.AddFlags(flags)
-	}
-	c.FangsConfig.AddFlags(flags)
 }
 
 func (c *Config) WithUIConstructor(constructor UIConstructor) *Config {
@@ -79,7 +63,7 @@ func (c *Config) WithLoggerConstructor(constructor LoggerConstructor) *Config {
 }
 
 func (c *Config) WithConfigFinders(finders ...fangs.Finder) *Config {
-	c.ConfigFinders = append(c.ConfigFinders, finders...)
+	c.FangsConfig.Finders = append(c.FangsConfig.Finders, finders...)
 	return c
 }
 
