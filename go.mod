@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/anchore/fangs v0.0.0-20230525152902-638d36dafff9
 	github.com/anchore/go-logger v0.0.0-20230120230012-47be9bb822a2
-	github.com/gookit/color v1.5.2
+	github.com/gookit/color v1.5.3
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/pkg/profile v1.7.0
 	github.com/spf13/cobra v1.6.1
@@ -41,7 +41,7 @@ require (
 	github.com/stretchr/objx v0.5.0 // indirect
 	github.com/subosito/gotenv v1.4.2 // indirect
 	github.com/xo/terminfo v0.0.0-20210125001918-ca9a967f8778 // indirect
-	golang.org/x/sys v0.3.0 // indirect
+	golang.org/x/sys v0.6.0 // indirect
 	golang.org/x/text v0.5.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 )
