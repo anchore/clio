@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/gookit/color"
+	"github.com/pborman/indent"
 	"github.com/pkg/profile"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -109,9 +110,9 @@ func (a *application) Setup(cfgs ...any) func(cmd *cobra.Command, args []string)
 func (a application) Run(ctx context.Context, errs <-chan error) error {
 	if a.config.Dev != nil {
 		switch a.config.Dev.Profile {
-		case CPUProfile:
+		case ProfileCPU:
 			defer profile.Start(profile.CPUProfile).Stop()
-		case MemProfile:
+		case ProfileMem:
 			defer profile.Start(profile.MemProfile).Stop()
 		}
 	}
@@ -181,7 +182,7 @@ func logConfiguration(log logger.Logger, cfgs ...any) {
 	content := sb.String()
 
 	if content != "" {
-		formatted := color.Magenta.Sprint(fangs.Indent(strings.TrimSpace(content), "  "))
+		formatted := color.Magenta.Sprint(indent.String("  ", strings.TrimSpace(content)))
 		log.Debugf("config:\n%+v", formatted)
 	} else {
 		log.Debug("config: (none)")
@@ -214,7 +215,7 @@ func (a *application) SetupCommand(cmd *cobra.Command, cfgs ...any) *cobra.Comma
 }
 
 func (a *application) SetupPersistentCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command {
-	return a.setupCommand(cmd, cmd.PersistentFlags(), &cmd.PersistentPreRunE, cfgs...)
+	return a.setupCommand(cmd, cmd.PersistentFlags(), &cmd.PreRunE, cfgs...)
 }
 
 func (a *application) setupCommand(cmd *cobra.Command, flags *pflag.FlagSet, fn *func(cmd *cobra.Command, args []string) error, cfgs ...any) *cobra.Command {
@@ -242,16 +243,16 @@ func (a *application) setupCommand(cmd *cobra.Command, flags *pflag.FlagSet, fn 
 
 func (a *application) SummarizeConfig(cmd *cobra.Command) string {
 	cfg := a.config.FangsConfig
-	separator := "-----------------------\n\n"
-	summary := separator
-	summary += fangs.SummarizeCommand(cfg, cmd, a.configs...)
-	summary += separator
-	summary += "Config Locations:\n"
+
+	summary := "Application Configuration:\n\n"
+	summary += indent.String("  ", strings.TrimSuffix(fangs.SummarizeCommand(cfg, cmd, a.configs...), "\n"))
+	summary += "\n"
+	summary += "Config Search Locations:\n"
 	for _, f := range fangs.SummarizeLocations(cfg) {
 		if !strings.HasSuffix(f, ".yaml") {
 			continue
 		}
-		summary += f + "\n"
+		summary += "  - " + f + "\n"
 	}
-	return fangs.Indent(strings.TrimSuffix(summary, "\n"), "  ")
+	return strings.TrimSpace(summary)
 }
