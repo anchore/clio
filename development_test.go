@@ -16,37 +16,37 @@ func Test_parseProfile(t *testing.T) {
 		{
 			name:    "empty",
 			profile: "",
-			want:    DisabledProfile,
+			want:    ProfilingDisabled,
 		},
 		{
 			name:    "disabled",
 			profile: "disabled",
-			want:    DisabledProfile,
+			want:    ProfilingDisabled,
 		},
 		{
 			name:    "none",
 			profile: "none",
-			want:    DisabledProfile,
+			want:    ProfilingDisabled,
 		},
 		{
 			name:    "mem - direct",
 			profile: "mem",
-			want:    MemProfile,
+			want:    ProfileMem,
 		},
 		{
 			name:    "cpu - direct",
 			profile: "cpu",
-			want:    CPUProfile,
+			want:    ProfileCPU,
 		},
 		{
 			name:    "memory + case test",
 			profile: "meMorY",
-			want:    MemProfile,
+			want:    ProfileMem,
 		},
 		{
 			name:    "memory",
 			profile: "memory",
-			want:    MemProfile,
+			want:    ProfileMem,
 		},
 		{
 			name:    "bogus",

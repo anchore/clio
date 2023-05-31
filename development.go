@@ -3,18 +3,24 @@ package clio
 import (
 	"fmt"
 	"strings"
+
+	"github.com/anchore/fangs"
 )
 
 const (
-	CPUProfile      Profile = "cpu"
-	MemProfile      Profile = "mem"
-	DisabledProfile Profile = "none"
+	ProfileCPU        Profile = "cpu"
+	ProfileMem        Profile = "mem"
+	ProfilingDisabled Profile = "none"
 )
 
 type Profile string
 
 type DevelopmentConfig struct {
-	Profile Profile `yaml:"profile" json:"profile"`
+	Profile Profile `yaml:"profile" json:"profile" mapstructure:"profile"`
+}
+
+func (d *DevelopmentConfig) DescribeFields(set fangs.FieldDescriptionSet) {
+	set.Add(&d.Profile, fmt.Sprintf("capture resource profiling data (available: [%s])", strings.Join([]string{string(ProfileCPU), string(ProfileMem)}, ", ")))
 }
 
 func (d *DevelopmentConfig) PostLoad() error {
@@ -29,11 +35,11 @@ func (d *DevelopmentConfig) PostLoad() error {
 func parseProfile(profile string) Profile {
 	switch strings.ToLower(profile) {
 	case "cpu":
-		return CPUProfile
+		return ProfileCPU
 	case "mem", "memory":
-		return MemProfile
+		return ProfileMem
 	case "none", "", "disabled":
-		return DisabledProfile
+		return ProfilingDisabled
 	default:
 		return ""
 	}

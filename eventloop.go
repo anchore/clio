@@ -37,13 +37,6 @@ func eventloop(ctx context.Context, log logger.Logger, subscription *partybus.Su
 		break
 	}
 
-	if ux == nil && subscription != nil {
-		if err := subscription.Unsubscribe(); err != nil {
-			log.Warnf("unable to unsubscribe from event bus: %+v", err)
-		}
-		subscription = nil
-	}
-
 	var retErr error
 	var forceTeardown bool
 

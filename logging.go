@@ -54,10 +54,10 @@ var _ LoggerConstructor = DefaultLogger
 
 // LoggingConfig contains all logging-related configuration options available to the user via the application config.
 type LoggingConfig struct {
-	Quiet        bool         `yaml:"quiet" json:"quiet"` // -q, indicates to not show any status output to stderr
-	Verbosity    int          `yaml:"-" json:"-" `        // -v or -vv , controlling which UI (ETUI vs logging) and what the log level should be
-	Level        logger.Level `yaml:"level" json:"level"` // the log level string hint
-	FileLocation string       `yaml:"file" json:"file"`   // the file path to write logs to
+	Quiet        bool         `yaml:"quiet" json:"quiet" mapstructure:"quiet"` // -q, indicates to not show any status output to stderr
+	Verbosity    int          `yaml:"-" json:"-" mapstructure:"verbosity"`     // -v or -vv , controlling which UI (ETUI vs logging) and what the log level should be
+	Level        logger.Level `yaml:"level" json:"level" mapstructure:"level"` // the log level string hint
+	FileLocation string       `yaml:"file" json:"file" mapstructure:"file"`    // the file path to write logs to
 
 	terminalDetector terminalDetector // for testing
 
@@ -65,8 +65,11 @@ type LoggingConfig struct {
 	// Structured   bool         `yaml:"structured" json:"structured" mapstructure:"structured"`                        // show all log entries as JSON formatted strings
 }
 
-var _ fangs.FlagAdder = (*LoggingConfig)(nil)
-var _ fangs.PostLoad = (*LoggingConfig)(nil)
+var _ interface {
+	fangs.PostLoader
+	fangs.FlagAdder
+	fangs.FieldDescriber
+} = (*LoggingConfig)(nil)
 
 func (l *LoggingConfig) PostLoad() error {
 	lvl, err := l.selectLevel()
@@ -77,6 +80,11 @@ func (l *LoggingConfig) PostLoad() error {
 	l.Level = lvl
 
 	return nil
+}
+
+func (l *LoggingConfig) DescribeFields(d fangs.FieldDescriptionSet) {
+	d.Add(&l.Level, fmt.Sprintf("explicitly set the logging level (available: %s)", logger.Levels()))
+	d.Add(&l.FileLocation, "file path to write logs to")
 }
 
 func (l *LoggingConfig) selectLevel() (logger.Level, error) {
