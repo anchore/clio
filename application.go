@@ -17,7 +17,7 @@ import (
 	"github.com/anchore/go-logger"
 )
 
-type Initializer func(cfg Config, state State) error
+type Initializer func(cfg Config, state *State) error
 
 type State struct {
 	Bus          *partybus.Bus
@@ -38,9 +38,9 @@ type Application interface {
 }
 
 type application struct {
-	configs []any
-	config  Config
-	state   State
+	configs []any  `yaml:"-" mapstructure:"-"`
+	config  Config `yaml:"-" mapstructure:"-"`
+	state   State  `yaml:"-" mapstructure:"-"`
 }
 
 func New(cfg Config) Application {
@@ -71,10 +71,36 @@ func (a application) State() State {
 	return a.state
 }
 
+func (a *application) PostLoad() error {
+	a.setupBus()
+
+	if err := a.setupLogger(); err != nil {
+		return fmt.Errorf("unable to setup logger: %w", err)
+	}
+
+	if err := a.setupUI(); err != nil {
+		return fmt.Errorf("unable to setup UI: %w", err)
+	}
+
+	for _, init := range a.config.Initializers {
+		if err := init(a.config, &a.state); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (a *application) Setup(cfgs ...any) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		allConfigs := []any{&a.config}
-		allConfigs = append(allConfigs, a.config.AdditionalConfigs...)
+		// allow for the all configuration to be loaded first, then allow for the application
+		// PostLoad() to run, allowing the setup of resources (logger, bus, ui, etc.) and run user initializers
+		// as early as possible before the final configuration is logged. This allows for a couple things:
+		// 1. user initializers to account for taking action before logging the final configuration (such as log redactions).
+		// 2. other user-facing PostLoad() functions to be able to use the logger, bus, etc. as early as possible. (though it's up to the caller on how these objects are made accessible)
+
+		allConfigs := []any{&a.config}                                 // process the core application configurations first (logging and development)
+		allConfigs = append(allConfigs, a)                             // enables application.PostLoad() to be called, initializing all state (bus, logger, ui, etc.)
+		allConfigs = append(allConfigs, a.config.AdditionalConfigs...) // allow for all other configs to be loaded + call PostLoad()
 		allConfigs = append(allConfigs, cfgs...)
 		allConfigs = nonNil(allConfigs...)
 
@@ -82,26 +108,10 @@ func (a *application) Setup(cfgs ...any) func(cmd *cobra.Command, args []string)
 			return fmt.Errorf("invalid application config: %v", err)
 		}
 
-		if err := a.setupLogger(); err != nil {
-			return fmt.Errorf("unable to setup logger: %w", err)
-		}
-
 		// show the app version and configuration...
 		logVersion(a.config, a.state.Logger)
 
 		logConfiguration(a.state.Logger, allConfigs...)
-
-		a.setupBus()
-
-		if err := a.setupUI(); err != nil {
-			return fmt.Errorf("unable to setup UI: %w", err)
-		}
-
-		for _, init := range a.config.Initializers {
-			if err := init(a.config, a.state); err != nil {
-				return err
-			}
-		}
 
 		return nil
 	}
@@ -174,8 +184,10 @@ func logConfiguration(log logger.Logger, cfgs ...any) {
 			}
 		}
 
-		if str != "" {
-			sb.WriteString(str)
+		str = strings.TrimSpace(str)
+
+		if str != "" && str != "{}" {
+			sb.WriteString(str + "\n")
 		}
 	}
 
