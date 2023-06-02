@@ -9,8 +9,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Version defines the application version details (generally from build information)
-type Version struct {
+// Identification defines the application name and version details (generally from build information)
+type Identification struct {
+	Name           string `json:"application,omitempty"`    // application name
 	Version        string `json:"version,omitempty"`        // application semantic version
 	GitCommit      string `json:"gitCommit,omitempty"`      // git SHA at build-time
 	GitDescription string `json:"gitDescription,omitempty"` // indication of git tree (either "clean" or "dirty") at build-time
@@ -18,22 +19,20 @@ type Version struct {
 }
 
 type runtimeInfo struct {
-	Application string `json:"application,omitempty"` // application name
-	Version
+	Identification
 	GoVersion string `json:"goVersion,omitempty"` // go runtime version at build-time
 	Compiler  string `json:"compiler,omitempty"`  // compiler used at build-time
 	Platform  string `json:"platform,omitempty"`  // GOOS and GOARCH at build-time
 }
 
-func VersionCommand(a Application, version Version) *cobra.Command {
+func VersionCommand(app Application) *cobra.Command {
 	var format string
 
 	info := runtimeInfo{
-		Application: a.Config().Name,
-		Version:     version,
-		GoVersion:   runtime.Version(),
-		Compiler:    runtime.Compiler,
-		Platform:    fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),
+		Identification: app.ID(),
+		GoVersion:      runtime.Version(),
+		Compiler:       runtime.Compiler,
+		Platform:       fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),
 	}
 
 	cmd := &cobra.Command{
@@ -44,8 +43,8 @@ func VersionCommand(a Application, version Version) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			switch format {
 			case "text", "":
-				printIfNotEmpty("Application", info.Application)
-				printIfNotEmpty("Version", info.Version.Version)
+				printIfNotEmpty("Application", info.Name)
+				printIfNotEmpty("Version", info.Identification.Version)
 				printIfNotEmpty("BuildDate", info.BuildDate)
 				printIfNotEmpty("GitCommit", info.GitCommit)
 				printIfNotEmpty("GitDescription", info.GitDescription)

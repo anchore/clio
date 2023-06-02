@@ -10,43 +10,31 @@ import (
 	"github.com/pkg/profile"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"github.com/wagoodman/go-partybus"
 	"gopkg.in/yaml.v3"
 
 	"github.com/anchore/fangs"
 	"github.com/anchore/go-logger"
 )
 
-type Initializer func(cfg Config, state *State) error
-
-type State struct {
-	Bus          *partybus.Bus
-	Subscription *partybus.Subscription
-	Logger       logger.Logger
-	UIs          []UI
-}
+type Initializer func(state *State) error
 
 type Application interface {
-	AddConfigs(cfgs ...any)
-	Config() Config
-	Run(ctx context.Context, errs <-chan error) error
-	Setup(cfgs ...any) func(cmd *cobra.Command, args []string) error
+	ID() Identification
+	Run(fn func(ctx context.Context) error) func(cmd *cobra.Command, args []string) error
 	SetupCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command
-	SetupPersistentCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command
-	State() State
-	SummarizeConfig(cmd *cobra.Command) string
 }
 
 type application struct {
-	configs []any  `yaml:"-" mapstructure:"-"`
-	config  Config `yaml:"-" mapstructure:"-"`
-	state   State  `yaml:"-" mapstructure:"-"`
+	setup SetupConfig `yaml:"-" mapstructure:"-"`
+	state State       `yaml:"-" mapstructure:"-"`
 }
 
-func New(cfg Config) Application {
-	return &application{
-		config: cfg,
+func New(cfg SetupConfig) (Application, *cobra.Command) {
+	a := &application{
+		setup: cfg,
 	}
+
+	return a, setupRootCmd(a)
 }
 
 func nonNil(a ...any) []any {
@@ -59,36 +47,30 @@ func nonNil(a ...any) []any {
 	return ret
 }
 
-func (a *application) AddConfigs(cfgs ...any) {
-	a.configs = append(a.configs, cfgs...)
-}
-
-func (a application) Config() Config {
-	return a.config
-}
-
-func (a application) State() State {
-	return a.state
+func (a application) ID() Identification {
+	return a.setup.ID
 }
 
 func (a *application) PostLoad() error {
-	a.setupBus()
+	a.state.setupBus(a.setup.BusConstructor)
 
-	if err := a.setupLogger(); err != nil {
+	if err := a.state.setupLogger(a.setup.LoggerConstructor); err != nil {
 		return fmt.Errorf("unable to setup logger: %w", err)
 	}
 
-	if err := a.setupUI(); err != nil {
+	if err := a.state.setupUI(a.setup.UIConstructor); err != nil {
 		return fmt.Errorf("unable to setup UI: %w", err)
 	}
 
-	for _, init := range a.config.Initializers {
-		if err := init(a.config, &a.state); err != nil {
+	for _, init := range a.setup.Initializers {
+		if err := init(&a.state); err != nil {
 			return err
 		}
 	}
 	return nil
 }
+
+// TODO: configs of any doesn't lean into the type system enough. Consider a more specific type.
 
 func (a *application) Setup(cfgs ...any) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
@@ -98,18 +80,17 @@ func (a *application) Setup(cfgs ...any) func(cmd *cobra.Command, args []string)
 		// 1. user initializers to account for taking action before logging the final configuration (such as log redactions).
 		// 2. other user-facing PostLoad() functions to be able to use the logger, bus, etc. as early as possible. (though it's up to the caller on how these objects are made accessible)
 
-		allConfigs := []any{&a.config}                                 // process the core application configurations first (logging and development)
-		allConfigs = append(allConfigs, a)                             // enables application.PostLoad() to be called, initializing all state (bus, logger, ui, etc.)
-		allConfigs = append(allConfigs, a.config.AdditionalConfigs...) // allow for all other configs to be loaded + call PostLoad()
-		allConfigs = append(allConfigs, cfgs...)
+		allConfigs := []any{&a.state.Config}     // process the core application configurations first (logging and development)
+		allConfigs = append(allConfigs, a)       // enables application.PostLoad() to be called, initializing all state (bus, logger, ui, etc.)
+		allConfigs = append(allConfigs, cfgs...) // allow for all other configs to be loaded + call PostLoad()
 		allConfigs = nonNil(allConfigs...)
 
-		if err := fangs.Load(a.config.FangsConfig, cmd, allConfigs...); err != nil {
+		if err := fangs.Load(a.setup.FangsConfig, cmd, allConfigs...); err != nil {
 			return fmt.Errorf("invalid application config: %v", err)
 		}
 
 		// show the app version and configuration...
-		logVersion(a.config, a.state.Logger)
+		logVersion(a.setup, a.state.Logger)
 
 		logConfiguration(a.state.Logger, allConfigs...)
 
@@ -117,9 +98,16 @@ func (a *application) Setup(cfgs ...any) func(cmd *cobra.Command, args []string)
 	}
 }
 
-func (a application) Run(ctx context.Context, errs <-chan error) error {
-	if a.config.Dev != nil {
-		switch a.config.Dev.Profile {
+func (a *application) Run(fn func(ctx context.Context) error) func(cmd *cobra.Command, args []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		ctx := cmd.Context()
+		return a.run(ctx, async(ctx, fn))
+	}
+}
+
+func (a *application) run(ctx context.Context, errs <-chan error) error {
+	if a.state.Config.Dev != nil {
+		switch a.state.Config.Dev.Profile {
 		case ProfileCPU:
 			defer profile.Start(profile.CPUProfile).Stop()
 		case ProfileMem:
@@ -136,30 +124,15 @@ func (a application) Run(ctx context.Context, errs <-chan error) error {
 	)
 }
 
-func (a *application) setupLogger() error {
-	cx := a.config.LoggerConstructor
-	if cx == nil {
-		cx = DefaultLogger
-	}
-
-	lgr, err := cx(a.config)
-	if err != nil {
-		return err
-	}
-
-	a.state.Logger = lgr
-	return nil
-}
-
-func logVersion(cfg Config, log logger.Logger) {
-	if cfg.Version == "" {
-		log.Infof(cfg.Name)
+func logVersion(cfg SetupConfig, log logger.Logger) {
+	if cfg.ID.Version == "" {
+		log.Infof(cfg.ID.Name)
 		return
 	}
 	log.Infof(
 		"%s version: %+v",
-		cfg.Name,
-		cfg.Version,
+		cfg.ID.Name,
+		cfg.ID.Version,
 	)
 }
 
@@ -201,33 +174,8 @@ func logConfiguration(log logger.Logger, cfgs ...any) {
 	}
 }
 
-func (a *application) setupBus() {
-	cx := a.config.BusConstructor
-	if cx == nil {
-		cx = newBus
-	}
-	a.state.Bus = cx(a.config)
-	if a.state.Bus != nil {
-		a.state.Subscription = a.state.Bus.Subscribe()
-	}
-}
-
-func (a *application) setupUI() error {
-	cx := a.config.UIConstructor
-	if cx == nil {
-		cx = newUI
-	}
-	var err error
-	a.state.UIs, err = cx(a.config)
-	return err
-}
-
 func (a *application) SetupCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command {
 	return a.setupCommand(cmd, cmd.Flags(), &cmd.PreRunE, cfgs...)
-}
-
-func (a *application) SetupPersistentCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command {
-	return a.setupCommand(cmd, cmd.PersistentFlags(), &cmd.PreRunE, cfgs...)
 }
 
 func (a *application) setupCommand(cmd *cobra.Command, flags *pflag.FlagSet, fn *func(cmd *cobra.Command, args []string) error, cfgs ...any) *cobra.Command {
@@ -246,18 +194,18 @@ func (a *application) setupCommand(cmd *cobra.Command, flags *pflag.FlagSet, fn 
 	cmd.SilenceUsage = true
 	cmd.SilenceErrors = true
 
-	a.AddConfigs(cfgs...)
+	a.state.Config.FromCommands = append(a.state.Config.FromCommands, cfgs...)
 
-	fangs.AddFlags(a.config.FangsConfig.Logger, flags, cfgs...)
+	fangs.AddFlags(a.setup.FangsConfig.Logger, flags, cfgs...)
 
 	return cmd
 }
 
-func (a *application) SummarizeConfig(cmd *cobra.Command) string {
-	cfg := a.config.FangsConfig
+func (a *application) summarizeConfig(cmd *cobra.Command) string {
+	cfg := a.setup.FangsConfig
 
 	summary := "Application Configuration:\n\n"
-	summary += indent.String("  ", strings.TrimSuffix(fangs.SummarizeCommand(cfg, cmd, a.configs...), "\n"))
+	summary += indent.String("  ", strings.TrimSuffix(fangs.SummarizeCommand(cfg, cmd, a.state.Config.FromCommands...), "\n"))
 	summary += "\n"
 	summary += "Config Search Locations:\n"
 	for _, f := range fangs.SummarizeLocations(cfg) {
@@ -267,4 +215,63 @@ func (a *application) SummarizeConfig(cmd *cobra.Command) string {
 		summary += "  - " + f + "\n"
 	}
 	return strings.TrimSpace(summary)
+}
+
+func setupRootCmd(a *application) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "",
+		Version: a.setup.ID.Version,
+	}
+
+	var helpUsageTemplate = fmt.Sprintf(`{{if (or .Long .Short)}}{{.Long}}{{if not .Long}}{{.Short}}{{end}}
+
+{{end}}Usage:{{if (and .Runnable (ne .CommandPath "%s"))}}
+  {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
+  {{.CommandPath}} [command]{{end}}{{if .HasExample}}
+
+{{.Example}}{{end}}{{if gt (len .Aliases) 0}}
+
+Aliases:
+  {{.NameAndAliases}}{{end}}{{if .HasAvailableSubCommands}}
+
+Available Commands:{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+
+{{if not .CommandPath}}Global {{end}}Flags:
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if (and .HasAvailableInheritedFlags (not .CommandPath))}}
+
+Global Flags:
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
+
+Additional help topics:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
+  {{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
+
+Use "{{if .CommandPath}}{{.CommandPath}} {{end}}[command] --help" for more information about a command.{{end}}
+`, a.setup.ID.Name)
+
+	cmd.SetUsageTemplate(helpUsageTemplate)
+	cmd.SetHelpTemplate(helpUsageTemplate)
+
+	cmd.SetVersionTemplate(fmt.Sprintf("%s {{.Version}}\n", a.setup.ID.Name))
+
+	helpFn := cmd.HelpFunc()
+	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		// root.Example is set _after all added commands_ because it collects all the
+		// options structs in order to output an accurate "config file" summary
+		cmd.Example = a.summarizeConfig(cmd)
+		helpFn(cmd, args)
+	})
+
+	return a.setupCommand(cmd, cmd.PersistentFlags(), &cmd.PreRunE, &a.setup)
+}
+
+func async(ctx context.Context, f func(ctx context.Context) error) <-chan error {
+	errs := make(chan error)
+	go func() {
+		defer close(errs)
+		if err := f(ctx); err != nil {
+			errs <- err
+		}
+	}()
+	return errs
 }

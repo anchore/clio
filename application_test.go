@@ -122,7 +122,7 @@ func Test_Application_Setup(t *testing.T) {
 	tests := []struct {
 		name      string
 		cmdCfg    any
-		cfg       *Config
+		cfg       *SetupConfig
 		assertRun func(cmd *cobra.Command, args []string)
 		assertCfg func(cfg *CmdConfig)
 		wantErr   require.ErrorAssertionFunc
@@ -130,7 +130,7 @@ func Test_Application_Setup(t *testing.T) {
 		{
 			name:   "reads configuration (fangs is wired)",
 			cmdCfg: defaultCmdCfg(),
-			cfg:    NewConfig(name, version),
+			cfg:    NewSetupConfig(name, version),
 			assertCfg: func(cfg *CmdConfig) {
 				assert.Equal(t, &CmdConfig{
 					Name: "name!",
@@ -148,12 +148,12 @@ func Test_Application_Setup(t *testing.T) {
 		},
 		{
 			name: "missing command config does not panic",
-			cfg:  NewConfig(name, version),
+			cfg:  NewSetupConfig(name, version),
 		},
 		{
 			name: "runs initializers",
-			cfg: NewConfig(name, version).WithInitializers(
-				func(cfg Config, state State) error {
+			cfg: NewSetupConfig(name, version).WithInitializers(
+				func(cfg SetupConfig, state *State) error {
 					t.Setenv("PUPPY_THING_STUFF", "bark-bark!")
 					return nil
 				},
@@ -164,10 +164,10 @@ func Test_Application_Setup(t *testing.T) {
 		},
 		{
 			name: "can configure a logger",
-			cfg: NewConfig(name, version).
+			cfg: NewSetupConfig(name, version).
 				WithLoggingConfig(LoggingConfig{Level: logger.InfoLevel}).
 				WithInitializers(
-					func(cfg Config, state State) error {
+					func(cfg SetupConfig, state *State) error {
 						require.NotNil(t, state.Logger)
 						c, ok := state.Logger.(logger.Controller)
 						if !ok {
@@ -187,14 +187,14 @@ func Test_Application_Setup(t *testing.T) {
 		{
 			// TODO: missing bus constructor from this test
 			name: "wires up state via passed constructors",
-			cfg: NewConfig(name, version).
-				WithUIConstructor(func(config Config) ([]UI, error) {
+			cfg: NewSetupConfig(name, version).
+				WithUI(func(config SetupConfig) ([]UI, error) {
 					return []UI{&mockUI{}}, nil
 				}).
-				WithLoggerConstructor(func(config Config) (logger.Logger, error) {
+				WithLogger(func(config SetupConfig) (logger.Logger, error) {
 					return newMockLogger(), nil
 				}).WithInitializers(
-				func(cfg Config, state State) error {
+				func(cfg SetupConfig, state *State) error {
 					require.NotNil(t, state.Logger)
 					_, ok := state.Logger.(*mockLogger)
 					assert.True(t, ok, "expected logger to be a mock")
@@ -250,9 +250,9 @@ func Test_SetupCommand(t *testing.T) {
 		},
 	}
 
-	a := New(Config{
+	a := New(SetupConfig{
 		Name:        "myApp",
-		Version:     "v2.4.11",
+		ID:          "v2.4.11",
 		FangsConfig: fangs.NewConfig("myApp"),
 	})
 
