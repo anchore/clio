@@ -1,6 +1,8 @@
 package clio
 
 import (
+	"fmt"
+
 	"github.com/wagoodman/go-partybus"
 
 	"github.com/anchore/go-logger"
@@ -20,6 +22,19 @@ type Config struct {
 	Dev *DevelopmentConfig `yaml:"dev" json:"dev" mapstructure:"dev"`
 
 	FromCommands []any `yaml:"-" json:"-" mapstructure:"-"`
+}
+
+func (s *State) setup(cfg SetupConfig) error {
+	s.setupBus(cfg.BusConstructor)
+
+	if err := s.setupLogger(cfg.LoggerConstructor); err != nil {
+		return fmt.Errorf("unable to setup logger: %w", err)
+	}
+
+	if err := s.setupUI(cfg.UIConstructor); err != nil {
+		return fmt.Errorf("unable to setup UI: %w", err)
+	}
+	return nil
 }
 
 func (s *State) setupLogger(cx LoggerConstructor) error {

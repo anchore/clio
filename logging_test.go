@@ -65,7 +65,7 @@ func Test_newLogger(t *testing.T) {
 			if tt.wantErr == nil {
 				tt.wantErr = require.NoError
 			}
-			log, err := DefaultLogger(SetupConfig{Log: tt.cfg})
+			log, err := DefaultLogger(Config{Log: tt.cfg})
 			tt.wantErr(t, err)
 			if err != nil {
 				return
