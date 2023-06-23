@@ -25,11 +25,11 @@ type runtimeInfo struct {
 	Platform  string `json:"platform,omitempty"`  // GOOS and GOARCH at build-time
 }
 
-func VersionCommand(app Application) *cobra.Command {
+func VersionCommand(id Identification) *cobra.Command {
 	var format string
 
 	info := runtimeInfo{
-		Identification: app.ID(),
+		Identification: id,
 		GoVersion:      runtime.Version(),
 		Compiler:       runtime.Compiler,
 		Platform:       fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),
