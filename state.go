@@ -6,6 +6,7 @@ import (
 	"github.com/wagoodman/go-partybus"
 
 	"github.com/anchore/go-logger"
+	"github.com/anchore/go-logger/adapter/redact"
 )
 
 type State struct {
@@ -13,6 +14,7 @@ type State struct {
 	Bus          *partybus.Bus
 	Subscription *partybus.Subscription
 	Logger       logger.Logger
+	RedactStore  redact.Store
 	UIs          []UI
 }
 
@@ -21,6 +23,7 @@ type Config struct {
 	Log *LoggingConfig     `yaml:"log" json:"log" mapstructure:"log"`
 	Dev *DevelopmentConfig `yaml:"dev" json:"dev" mapstructure:"dev"`
 
+	// this is a list of all "config" objects from SetupCommand calls
 	FromCommands []any `yaml:"-" json:"-" mapstructure:"-"`
 }
 

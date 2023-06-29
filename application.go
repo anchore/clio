@@ -14,11 +14,15 @@ import (
 
 	"github.com/anchore/fangs"
 	"github.com/anchore/go-logger"
+	"github.com/anchore/go-logger/adapter/redact"
 )
 
 type Initializer func(state *State) error
 
+type postConstruct func(application Application)
+
 type Application interface {
+	AddFlags(flags *pflag.FlagSet, cfgs ...any)
 	SetupCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command
 }
 
@@ -28,10 +32,18 @@ type application struct {
 	state       State       `yaml:"-" mapstructure:"-"`
 }
 
+var _ interface {
+	Application
+	fangs.PostLoader
+} = (*application)(nil)
+
 func New(cfg SetupConfig, root *cobra.Command, cfgs ...any) Application {
 	a := &application{
 		root:        root,
 		setupConfig: cfg,
+		state: State{
+			RedactStore: redact.NewStore(),
+		},
 	}
 
 	a.setupRootCommand(root, cfgs...)
@@ -58,7 +70,10 @@ func (a *application) PostLoad() error {
 	if err := a.state.setup(a.setupConfig); err != nil {
 		return err
 	}
+	return a.runInitializers()
+}
 
+func (a *application) runInitializers() error {
 	for _, init := range a.setupConfig.Initializers {
 		if err := init(&a.state); err != nil {
 			return err
@@ -179,6 +194,11 @@ func logConfiguration(log logger.Logger, cfgs ...any) {
 	}
 }
 
+func (a *application) AddFlags(flags *pflag.FlagSet, cfgs ...any) {
+	fangs.AddFlags(a.setupConfig.FangsConfig.Logger, flags, cfgs...)
+	a.state.Config.FromCommands = append(a.state.Config.FromCommands, cfgs...)
+}
+
 func (a *application) SetupCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command {
 	return a.setupCommand(cmd, cmd.Flags(), &cmd.PreRunE, cfgs...)
 }
@@ -193,68 +213,24 @@ func (a *application) setupRootCommand(cmd *cobra.Command, cfgs ...any) *cobra.C
 
 	cmd.SetVersionTemplate(fmt.Sprintf("%s {{.Version}}\n", a.setupConfig.ID.Name))
 
-	if a.setupConfig.ShowConfigInRootHelp {
-		var helpUsageTemplate = fmt.Sprintf(`{{if (or .Long .Short)}}{{.Long}}{{if not .Long}}{{.Short}}{{end}}
+	// make a copy of the default configs
+	a.state.Config.Log = cp(a.setupConfig.DefaultLoggingConfig)
+	a.state.Config.Dev = cp(a.setupConfig.DefaultDevelopmentConfig)
 
-{{end}}Usage:{{if (and .Runnable (ne .CommandPath "%s"))}}
-  {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
-  {{.CommandPath}} [command]{{end}}{{if .HasExample}}
-
-{{.Example}}{{end}}{{if gt (len .Aliases) 0}}
-
-Aliases:
-  {{.NameAndAliases}}{{end}}{{if .HasAvailableSubCommands}}
-
-Available Commands:{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
-  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
-
-{{if not .CommandPath}}Global {{end}}Flags:
-{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if (and .HasAvailableInheritedFlags (not .CommandPath))}}
-
-Global Flags:
-{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
-
-Additional help topics:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
-  {{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
-
-Use "{{if .CommandPath}}{{.CommandPath}} {{end}}[command] --help" for more information about a command.{{end}}
-`, a.setupConfig.ID.Name)
-
-		cmd.SetUsageTemplate(helpUsageTemplate)
-		cmd.SetHelpTemplate(helpUsageTemplate)
-
-		helpFn := cmd.HelpFunc()
-		cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
-			// TODO: I'm still busted... not loading the config (either defaults or current)
-
-			// root.Example is set _after all added commands_ because it collects all the
-			// options structs in order to output an accurate "config file" summary
-			// note: since all commands tend to share help functions it's important to only patch the example
-			// when there is no parent command (i.e. the root command).
-			if cmd == a.root {
-				_, err := a.loadConfigs(cmd, false, cfgs...)
-				if err == nil {
-					cmd.Example = a.summarizeConfig(cmd)
-				}
-			}
-			helpFn(cmd, args)
-		})
-	}
-
-	a.state.Config.Log = a.setupConfig.DefaultLoggingConfig
-	a.state.Config.Dev = a.setupConfig.DefaultDevelopmentConfig
-
-	logger := a.setupConfig.FangsConfig.Logger
-
-	if a.setupConfig.LoggingFlags {
-		fangs.AddFlags(logger, cmd.PersistentFlags(), &a.state.Config)
-	}
-
-	if a.setupConfig.ApplicationConfigPathFlag {
-		fangs.AddFlags(logger, cmd.PersistentFlags(), &a.setupConfig.FangsConfig)
+	for _, pc := range a.setupConfig.postConstructs {
+		pc(a)
 	}
 
 	return a.setupCommand(cmd, cmd.Flags(), &cmd.PreRunE, cfgs...)
+}
+
+func cp[T any](value *T) *T {
+	if value == nil {
+		return nil
+	}
+
+	t := *value
+	return &t
 }
 
 func (a *application) setupCommand(cmd *cobra.Command, flags *pflag.FlagSet, fn *func(cmd *cobra.Command, args []string) error, cfgs ...any) *cobra.Command {

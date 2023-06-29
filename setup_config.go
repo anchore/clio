@@ -22,11 +22,7 @@ type SetupConfig struct {
 	LoggerConstructor LoggerConstructor
 	UIConstructor     UIConstructor
 	Initializers      []Initializer
-
-	// Options
-	ShowConfigInRootHelp      bool
-	LoggingFlags              bool
-	ApplicationConfigPathFlag bool
+	postConstructs    []postConstruct
 }
 
 func NewSetupConfig(id Identification) *SetupConfig {
@@ -39,9 +35,6 @@ func NewSetupConfig(id Identification) *SetupConfig {
 		DefaultLoggingConfig: &LoggingConfig{
 			Level: logger.WarnLevel,
 		},
-		ShowConfigInRootHelp:      true,
-		ApplicationConfigPathFlag: true,
-		LoggingFlags:              true,
 		// note: no ui selector or dev options by default...
 	}
 }
@@ -101,4 +94,29 @@ func (c *SetupConfig) WithNoLogging() *SetupConfig {
 func (c *SetupConfig) WithInitializers(initializers ...Initializer) *SetupConfig {
 	c.Initializers = append(c.Initializers, initializers...)
 	return c
+}
+
+func (c *SetupConfig) withPostConstructs(postConstructs ...postConstruct) *SetupConfig {
+	c.postConstructs = append(c.postConstructs, postConstructs...)
+	return c
+}
+
+func (c *SetupConfig) WithGlobalConfigFlag() *SetupConfig {
+	return c.withPostConstructs(func(a Application) {
+		if a, ok := a.(*application); ok {
+			a.AddFlags(a.root.PersistentFlags(), &a.state.Config)
+		}
+	})
+}
+
+func (c *SetupConfig) WithGlobalLoggingFlags() *SetupConfig {
+	return c.withPostConstructs(func(a Application) {
+		if a, ok := a.(*application); ok {
+			a.AddFlags(a.root.PersistentFlags(), &a.setupConfig.FangsConfig)
+		}
+	})
+}
+
+func (c *SetupConfig) WithConfigInRootHelp() *SetupConfig {
+	return c.withPostConstructs(updateHelpUsageTemplate, showConfigInRootHelp)
 }

@@ -121,16 +121,15 @@ func Test_Application_Setup_WiresFangs(t *testing.T) {
 
 	t.Setenv("PUPPY_THING_STUFF", "ruff-ruff!")
 
-	app := New(*cfg)
+	cmd := &cobra.Command{
+		DisableFlagParsing: true,
+		Args:               cobra.ArbitraryArgs,
+		Run: func(cmd *cobra.Command, args []string) {
+			assert.Equal(t, "ruff-ruff!", os.Getenv("PUPPY_THING_STUFF"))
+		},
+	}
 
-	cmd := app.SetupCommand(
-		&cobra.Command{
-			DisableFlagParsing: true,
-			Args:               cobra.ArbitraryArgs,
-			Run: func(cmd *cobra.Command, args []string) {
-				assert.Equal(t, "ruff-ruff!", os.Getenv("PUPPY_THING_STUFF"))
-			},
-		}, cmdCfg)
+	_ = New(*cfg, cmd, cmdCfg)
 
 	require.NoError(t, cmd.Execute())
 
@@ -158,17 +157,16 @@ func Test_Application_Setup_PassLoggerConstructor(t *testing.T) {
 			return newMockLogger(), nil
 		})
 
-	app := New(*cfg)
+	cmd := &cobra.Command{
+		DisableFlagParsing: true,
+		Args:               cobra.ArbitraryArgs,
+		Run:                func(cmd *cobra.Command, args []string) {},
+	}
 
-	cmd := app.SetupCommand(
-		&cobra.Command{
-			DisableFlagParsing: true,
-			Args:               cobra.ArbitraryArgs,
-			Run:                func(cmd *cobra.Command, args []string) {},
-		})
+	app := New(*cfg, cmd)
 
 	require.NoError(t, cmd.Execute())
-	state := app.State()
+	state := app.(*application).State()
 
 	require.NotNil(t, state.Logger)
 	_, ok := state.Logger.(*mockLogger)
@@ -188,17 +186,16 @@ func Test_Application_Setup_ConfigureLogger(t *testing.T) {
 	cfg := NewSetupConfig(Identification{Name: name, Version: version}).
 		WithLoggingConfig(LoggingConfig{Level: logger.InfoLevel})
 
-	app := New(*cfg)
+	cmd := &cobra.Command{
+		DisableFlagParsing: true,
+		Args:               cobra.ArbitraryArgs,
+		Run:                func(cmd *cobra.Command, args []string) {},
+	}
 
-	cmd := app.SetupCommand(
-		&cobra.Command{
-			DisableFlagParsing: true,
-			Args:               cobra.ArbitraryArgs,
-			Run:                func(cmd *cobra.Command, args []string) {},
-		})
+	app := New(*cfg, cmd)
 
 	require.NoError(t, cmd.Execute())
-	state := app.State()
+	state := app.(*application).State()
 
 	require.NotNil(t, state.Logger)
 	c, ok := state.Logger.(logger.Controller)
@@ -227,7 +224,7 @@ func Test_Application_Setup_RunsInitializers(t *testing.T) {
 
 	t.Setenv("PUPPY_THING_STUFF", "ruff-ruff!")
 
-	app := New(*cfg)
+	app := New(*cfg, &cobra.Command{})
 
 	cmd := app.SetupCommand(
 		&cobra.Command{
@@ -246,11 +243,14 @@ func Test_SetupCommand(t *testing.T) {
 
 	root := &cobra.Command{}
 
-	cfg := NewSetupConfig(Identification{Name: "myApp", Version: "v2.4.11"})
+	cfg := NewSetupConfig(Identification{Name: "myApp", Version: "v2.4.11"}).
+		WithConfigInRootHelp().
+		WithGlobalConfigFlag().
+		WithGlobalLoggingFlags()
 
-	a := New(*cfg)
+	a := New(*cfg, root)
 
-	root = a.SetupCommand(root, p)
+	a.AddFlags(root.PersistentFlags(), p)
 
 	preRunCalled := false
 	sub := &cobra.Command{
@@ -269,6 +269,9 @@ func Test_SetupCommand(t *testing.T) {
 
 	assert.Contains(t, usage, "--config")
 	assert.Contains(t, usage, "--verbose")
+	assert.Contains(t, usage, "--quiet")
+	assert.Contains(t, usage, "--persistent-config")
+	assert.Contains(t, usage, "--persistent-verbosity")
 	assert.Contains(t, usage, "--output")
 	assert.Contains(t, usage, "--extras")
 	assert.Contains(t, usage, "--online")
@@ -287,8 +290,8 @@ type persistent struct {
 var _ fangs.FlagAdder = (*persistent)(nil)
 
 func (t *persistent) AddFlags(flags fangs.FlagSet) {
-	flags.StringVarP(&t.Config, "config", "c", "the persistent config")
-	flags.CountVarP(&t.Verbosity, "verbosity", "v", "the persistent verbosity")
+	flags.StringVarP(&t.Config, "persistent-config", "", "the persistent config")
+	flags.CountVarP(&t.Verbosity, "persistent-verbosity", "", "the persistent verbosity")
 }
 
 type f1 struct {
