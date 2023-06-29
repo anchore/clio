@@ -102,18 +102,14 @@ func (c *SetupConfig) withPostConstructs(postConstructs ...postConstruct) *Setup
 }
 
 func (c *SetupConfig) WithGlobalConfigFlag() *SetupConfig {
-	return c.withPostConstructs(func(a Application) {
-		if a, ok := a.(*application); ok {
-			a.AddFlags(a.root.PersistentFlags(), &a.state.Config)
-		}
+	return c.withPostConstructs(func(a *application) {
+		a.AddFlags(a.root.PersistentFlags(), &a.state.Config)
 	})
 }
 
 func (c *SetupConfig) WithGlobalLoggingFlags() *SetupConfig {
-	return c.withPostConstructs(func(a Application) {
-		if a, ok := a.(*application); ok {
-			a.AddFlags(a.root.PersistentFlags(), &a.setupConfig.FangsConfig)
-		}
+	return c.withPostConstructs(func(a *application) {
+		a.AddFlags(a.root.PersistentFlags(), &a.setupConfig.FangsConfig)
 	})
 }
 

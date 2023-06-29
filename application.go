@@ -17,9 +17,9 @@ import (
 	"github.com/anchore/go-logger/adapter/redact"
 )
 
-type Initializer func(state *State) error
+type Initializer func(*State) error
 
-type postConstruct func(application Application)
+type postConstruct func(*application)
 
 type Application interface {
 	AddFlags(flags *pflag.FlagSet, cfgs ...any)
@@ -51,35 +51,9 @@ func New(cfg SetupConfig, root *cobra.Command, cfgs ...any) Application {
 	return a
 }
 
-func nonNil(a ...any) []any {
-	var ret []any
-	for _, v := range a {
-		if v != nil {
-			ret = append(ret, v)
-		}
-	}
-	return ret
-}
-
 // State returns all application configuration and resources to be either used or replaced by the caller. Note: this is only valid after the application has been setup (cobra PreRunE has run).
 func (a *application) State() *State {
 	return &a.state
-}
-
-func (a *application) PostLoad() error {
-	if err := a.state.setup(a.setupConfig); err != nil {
-		return err
-	}
-	return a.runInitializers()
-}
-
-func (a *application) runInitializers() error {
-	for _, init := range a.setupConfig.Initializers {
-		if err := init(&a.state); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // TODO: configs of any doesn't lean into the type system enough. Consider a more specific type.
@@ -117,6 +91,22 @@ func (a *application) loadConfigs(cmd *cobra.Command, withResources bool, cfgs .
 		return nil, fmt.Errorf("invalid application config: %v", err)
 	}
 	return allConfigs, nil
+}
+
+func (a *application) PostLoad() error {
+	if err := a.state.setup(a.setupConfig); err != nil {
+		return err
+	}
+	return a.runInitializers()
+}
+
+func (a *application) runInitializers() error {
+	for _, init := range a.setupConfig.Initializers {
+		if err := init(&a.state); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (a *application) Run(fn func(cmd *cobra.Command, args []string) error) func(cmd *cobra.Command, args []string) error {
@@ -204,8 +194,7 @@ func (a *application) SetupCommand(cmd *cobra.Command, cfgs ...any) *cobra.Comma
 }
 
 func (a *application) setupRootCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command {
-	// TODO: more? if doesn't start with name
-	if cmd.Use == "" {
+	if !strings.HasPrefix(cmd.Use, a.setupConfig.ID.Name) {
 		cmd.Use = a.setupConfig.ID.Name
 	}
 
@@ -285,4 +274,14 @@ func async(cmd *cobra.Command, args []string, f func(cmd *cobra.Command, args []
 		}
 	}()
 	return errs
+}
+
+func nonNil(a ...any) []any {
+	var ret []any
+	for _, v := range a {
+		if v != nil {
+			ret = append(ret, v)
+		}
+	}
+	return ret
 }

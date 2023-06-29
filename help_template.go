@@ -10,11 +10,10 @@ import (
 
 var _ postConstruct = updateHelpUsageTemplate
 
-func updateHelpUsageTemplate(a Application) {
-	if a, ok := a.(*application); ok {
-		cmd := a.root
+func updateHelpUsageTemplate(a *application) {
+	cmd := a.root
 
-		var helpUsageTemplate = fmt.Sprintf(`{{if (or .Long .Short)}}{{.Long}}{{if not .Long}}{{.Short}}{{end}}
+	var helpUsageTemplate = fmt.Sprintf(`{{if (or .Long .Short)}}{{.Long}}{{if not .Long}}{{.Short}}{{end}}
 
 {{end}}Usage:{{if (and .Runnable (ne .CommandPath "%s"))}}
   {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
@@ -40,38 +39,35 @@ Additional help topics:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
 Use "{{if .CommandPath}}{{.CommandPath}} {{end}}[command] --help" for more information about a command.{{end}}
 `, a.setupConfig.ID.Name, a.setupConfig.ID.Name)
 
-		cmd.SetUsageTemplate(helpUsageTemplate)
-		cmd.SetHelpTemplate(helpUsageTemplate)
-	}
+	cmd.SetUsageTemplate(helpUsageTemplate)
+	cmd.SetHelpTemplate(helpUsageTemplate)
 }
 
 var _ postConstruct = showConfigInRootHelp
 
-func showConfigInRootHelp(a Application) {
-	if a, ok := a.(*application); ok {
-		cmd := a.root
+func showConfigInRootHelp(a *application) {
+	cmd := a.root
 
-		helpFn := cmd.HelpFunc()
-		cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
-			// root.Example is set _after all added commands_ because it collects all the
-			// options structs in order to output an accurate "config file" summary
-			// note: since all commands tend to share help functions it's important to only patch the example
-			// when there is no parent command (i.e. the root command).
-			if cmd == a.root {
-				cfgs := append([]any{&appInitializer{a: a}}, a.state.Config.FromCommands...)
-				_, err := a.loadConfigs(cmd, false, cfgs...)
-				if err != nil {
-					panic(err)
-				}
-				summary := a.summarizeConfig(cmd)
-				if a.state.RedactStore != nil {
-					summary = a.state.RedactStore.RedactString(summary)
-				}
-				cmd.Example = summary
+	helpFn := cmd.HelpFunc()
+	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		// root.Example is set _after all added commands_ because it collects all the
+		// options structs in order to output an accurate "config file" summary
+		// note: since all commands tend to share help functions it's important to only patch the example
+		// when there is no parent command (i.e. the root command).
+		if cmd == a.root {
+			cfgs := append([]any{&appInitializer{a: a}}, a.state.Config.FromCommands...)
+			_, err := a.loadConfigs(cmd, false, cfgs...)
+			if err != nil {
+				panic(err)
 			}
-			helpFn(cmd, args)
-		})
-	}
+			summary := a.summarizeConfig(cmd)
+			if a.state.RedactStore != nil {
+				summary = a.state.RedactStore.RedactString(summary)
+			}
+			cmd.Example = summary
+		}
+		helpFn(cmd, args)
+	})
 }
 
 type appInitializer struct {
