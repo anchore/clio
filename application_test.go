@@ -14,6 +14,7 @@ import (
 	"github.com/anchore/fangs"
 	"github.com/anchore/go-logger"
 	"github.com/anchore/go-logger/adapter/discard"
+	"github.com/anchore/go-logger/adapter/redact"
 )
 
 const ansi = "[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))"
@@ -153,7 +154,7 @@ func Test_Application_Setup_PassLoggerConstructor(t *testing.T) {
 
 	cfg := NewSetupConfig(Identification{Name: name, Version: version}).
 		WithUI(&mockUI{}).
-		WithLoggerConstructor(func(config Config) (logger.Logger, error) {
+		WithLoggerConstructor(func(_ Config, _ redact.Store) (logger.Logger, error) {
 			return newMockLogger(), nil
 		})
 
