@@ -25,8 +25,9 @@ func Test_redactingHelpText(t *testing.T) {
 		redact: "asdf",
 	}
 
-	root := &cobra.Command{}
-	app := New(*cfg, root, r)
+	app := New(*cfg)
+
+	root := app.SetupRootCommand(&cobra.Command{}, r)
 
 	r.store = app.(*application).state.RedactStore
 

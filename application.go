@@ -24,6 +24,7 @@ type postConstruct func(*application)
 type Application interface {
 	AddFlags(flags *pflag.FlagSet, cfgs ...any)
 	SetupCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command
+	SetupRootCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command
 }
 
 type application struct {
@@ -37,18 +38,13 @@ var _ interface {
 	fangs.PostLoader
 } = (*application)(nil)
 
-func New(cfg SetupConfig, root *cobra.Command, cfgs ...any) Application {
-	a := &application{
-		root:        root,
+func New(cfg SetupConfig) Application {
+	return &application{
 		setupConfig: cfg,
 		state: State{
 			RedactStore: redact.NewStore(),
 		},
 	}
-
-	a.setupRootCommand(root, cfgs...)
-
-	return a
 }
 
 // State returns all application configuration and resources to be either used or replaced by the caller. Note: this is only valid after the application has been setup (cobra PreRunE has run).
@@ -191,6 +187,11 @@ func (a *application) AddFlags(flags *pflag.FlagSet, cfgs ...any) {
 
 func (a *application) SetupCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command {
 	return a.setupCommand(cmd, cmd.Flags(), &cmd.PreRunE, cfgs...)
+}
+
+func (a *application) SetupRootCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command {
+	a.root = cmd
+	return a.setupRootCommand(cmd, cfgs...)
 }
 
 func (a *application) setupRootCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command {

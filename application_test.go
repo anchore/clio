@@ -121,15 +121,15 @@ func Test_Application_Setup_WiresFangs(t *testing.T) {
 
 	t.Setenv("PUPPY_THING_STUFF", "ruff-ruff!")
 
-	cmd := &cobra.Command{
+	app := New(*cfg)
+
+	cmd := app.SetupRootCommand(&cobra.Command{
 		DisableFlagParsing: true,
 		Args:               cobra.ArbitraryArgs,
 		Run: func(cmd *cobra.Command, args []string) {
 			assert.Equal(t, "ruff-ruff!", os.Getenv("PUPPY_THING_STUFF"))
 		},
-	}
-
-	_ = New(*cfg, cmd, cmdCfg)
+	}, cmdCfg)
 
 	require.NoError(t, cmd.Execute())
 
@@ -157,13 +157,13 @@ func Test_Application_Setup_PassLoggerConstructor(t *testing.T) {
 			return newMockLogger(), nil
 		})
 
-	cmd := &cobra.Command{
+	app := New(*cfg)
+
+	cmd := app.SetupRootCommand(&cobra.Command{
 		DisableFlagParsing: true,
 		Args:               cobra.ArbitraryArgs,
 		Run:                func(cmd *cobra.Command, args []string) {},
-	}
-
-	app := New(*cfg, cmd)
+	})
 
 	require.NoError(t, cmd.Execute())
 	state := app.(*application).State()
@@ -186,13 +186,13 @@ func Test_Application_Setup_ConfigureLogger(t *testing.T) {
 	cfg := NewSetupConfig(Identification{Name: name, Version: version}).
 		WithLoggingConfig(LoggingConfig{Level: logger.InfoLevel})
 
-	cmd := &cobra.Command{
+	app := New(*cfg)
+
+	cmd := app.SetupRootCommand(&cobra.Command{
 		DisableFlagParsing: true,
 		Args:               cobra.ArbitraryArgs,
 		Run:                func(cmd *cobra.Command, args []string) {},
-	}
-
-	app := New(*cfg, cmd)
+	})
 
 	require.NoError(t, cmd.Execute())
 	state := app.(*application).State()
@@ -224,7 +224,7 @@ func Test_Application_Setup_RunsInitializers(t *testing.T) {
 
 	t.Setenv("PUPPY_THING_STUFF", "ruff-ruff!")
 
-	app := New(*cfg, &cobra.Command{})
+	app := New(*cfg)
 
 	cmd := app.SetupCommand(
 		&cobra.Command{
@@ -241,16 +241,16 @@ func Test_Application_Setup_RunsInitializers(t *testing.T) {
 func Test_SetupCommand(t *testing.T) {
 	p := &persistent{}
 
-	root := &cobra.Command{}
-
 	cfg := NewSetupConfig(Identification{Name: "myApp", Version: "v2.4.11"}).
 		WithConfigInRootHelp().
 		WithGlobalConfigFlag().
 		WithGlobalLoggingFlags()
 
-	a := New(*cfg, root)
+	app := New(*cfg)
 
-	a.AddFlags(root.PersistentFlags(), p)
+	root := app.SetupRootCommand(&cobra.Command{})
+
+	app.AddFlags(root.PersistentFlags(), p)
 
 	preRunCalled := false
 	sub := &cobra.Command{
@@ -261,7 +261,7 @@ func Test_SetupCommand(t *testing.T) {
 	}
 
 	f := &f1{}
-	sub = a.SetupCommand(sub, f)
+	sub = app.SetupCommand(sub, f)
 
 	root.AddCommand(sub)
 
