@@ -45,7 +45,7 @@ func (s *State) setupLogger(cx LoggerConstructor) error {
 		cx = DefaultLogger
 	}
 
-	lgr, err := cx(s.Config)
+	lgr, err := cx(s.Config, s.RedactStore)
 	if err != nil {
 		return err
 	}

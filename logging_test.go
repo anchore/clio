@@ -14,12 +14,14 @@ import (
 	"github.com/anchore/fangs"
 	"github.com/anchore/go-logger"
 	"github.com/anchore/go-logger/adapter/discard"
+	"github.com/anchore/go-logger/adapter/redact"
 )
 
 func Test_newLogger(t *testing.T) {
 	tests := []struct {
 		name         string
 		cfg          *LoggingConfig
+		store        redact.Store
 		assertLogger func(logger.Logger)
 		wantErr      require.ErrorAssertionFunc
 	}{
@@ -59,13 +61,32 @@ func Test_newLogger(t *testing.T) {
 				assert.Equal(t, "[0000]  INFO test\n", stripAnsi(buf.String()))
 			},
 		},
+		{
+			name:  "adds redactor",
+			cfg:   &LoggingConfig{Level: "debug"},
+			store: redact.NewStore("secret"),
+			assertLogger: func(log logger.Logger) {
+				require.NotNil(t, log)
+				c, ok := log.(logger.Controller)
+				if !ok {
+					t.Fatal("expected logger to be a controller")
+				}
+
+				buf := &bytes.Buffer{}
+				c.SetOutput(buf)
+				log.Info("test secret")
+
+				// prove this is a NOT a nil logger
+				assert.Equal(t, "[0000]  INFO test *******\n", stripAnsi(buf.String()))
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.wantErr == nil {
 				tt.wantErr = require.NoError
 			}
-			log, err := DefaultLogger(Config{Log: tt.cfg})
+			log, err := DefaultLogger(Config{Log: tt.cfg}, tt.store)
 			tt.wantErr(t, err)
 			if err != nil {
 				return

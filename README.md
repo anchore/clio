@@ -9,7 +9,8 @@ An easy way to bootstrap your application with batteries included.
 ## What is included?
 - Pairs well with [cobra](github.com/spf13/cobra) and [viper](github.com/spf13/viper) via [fangs](github.com/anchore/fangs), covering CLI arg parsing and config file + env var loading.
 - Provides an event bus via [partybus](github.com/wagoodman/go-partybus), enabling visibility deep in your execution stack as to what is happening.
-- Provides a logger via the [logger interface](github.com/anchore/go-logger), allowing you to swap out for any concrete logger you want and decorate with redaction capabilities.
+- Provides a logger via the [logger interface](github.com/anchore/go-logger), allowing you to swap out for any concrete logger you'd like.
+- Supplies a redactor object that can be used to remove sensitive output before it's exposed (in the log or elsewhere).
 - Defines a generic UI interface that adapts well to TUI frameworks such as [bubbletea](github.com/charmbracelet/bubbletea).
 
 ## Example

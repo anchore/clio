@@ -6,6 +6,7 @@ import (
 	"github.com/anchore/fangs"
 	"github.com/anchore/go-logger"
 	"github.com/anchore/go-logger/adapter/discard"
+	"github.com/anchore/go-logger/adapter/redact"
 )
 
 type SetupConfig struct {
@@ -85,7 +86,7 @@ func (c *SetupConfig) WithLoggingConfig(cfg LoggingConfig) *SetupConfig {
 
 func (c *SetupConfig) WithNoLogging() *SetupConfig {
 	c.DefaultLoggingConfig = nil
-	c.LoggerConstructor = func(config Config) (logger.Logger, error) {
+	c.LoggerConstructor = func(_ Config, _ redact.Store) (logger.Logger, error) {
 		return discard.New(), nil
 	}
 	return c

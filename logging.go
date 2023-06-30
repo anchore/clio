@@ -11,6 +11,7 @@ import (
 	"github.com/anchore/go-logger"
 	"github.com/anchore/go-logger/adapter/discard"
 	"github.com/anchore/go-logger/adapter/logrus"
+	"github.com/anchore/go-logger/adapter/redact"
 )
 
 type terminalDetector interface {
@@ -28,9 +29,9 @@ func (s stockTerminalDetector) StderrIsTerminal() bool {
 	return term.IsTerminal(int(os.Stderr.Fd()))
 }
 
-type LoggerConstructor func(Config) (logger.Logger, error)
+type LoggerConstructor func(Config, redact.Store) (logger.Logger, error)
 
-func DefaultLogger(clioCfg Config) (logger.Logger, error) {
+func DefaultLogger(clioCfg Config, store redact.Store) (logger.Logger, error) {
 	cfg := clioCfg.Log
 	if cfg == nil {
 		return discard.New(), nil
@@ -45,6 +46,10 @@ func DefaultLogger(clioCfg Config) (logger.Logger, error) {
 	)
 	if err != nil {
 		return nil, err
+	}
+
+	if store != nil {
+		l = redact.New(l, store)
 	}
 
 	return l, nil
