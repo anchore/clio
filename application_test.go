@@ -81,182 +81,176 @@ func newMockLogger() *mockLogger {
 	}
 }
 
-func Test_Application_Setup(t *testing.T) {
+func Test_Application_Setup_WiresFangs(t *testing.T) {
 	name := "puppy"
 	version := "2.0"
 
-	type Embedded struct {
+	type EmbeddedConfig struct {
 		FreeBed string `yaml:"bed"`
 	}
 
-	type EmbeddedInline struct {
+	type EmbeddedInlineConfig struct {
 		InlineBed string `yaml:"inline-bed"`
 	}
 
-	type Nested struct {
+	type NestedConfig struct {
 		Stuff string `yaml:"stuff"`
 	}
 
 	type CmdConfig struct {
-		Name           string `yaml:"name"`
-		Thing          Nested `yaml:"thing"`
-		EmbeddedInline `yaml:",inline"`
-		Embedded       `yaml:"embedded"`
+		Name                 string       `yaml:"name"`
+		Thing                NestedConfig `yaml:"thing"`
+		EmbeddedInlineConfig `yaml:",inline"`
+		EmbeddedConfig       `yaml:"embedded"`
 	}
 
-	defaultCmdCfg := func() *CmdConfig {
-		return &CmdConfig{
-			Name: "name!",
-			Thing: Nested{
-				Stuff: "stuff!",
-			},
-			EmbeddedInline: EmbeddedInline{
-				InlineBed: "inline bed!",
-			},
-			Embedded: Embedded{
-				FreeBed: "free bed!",
-			},
-		}
+	cfg := NewSetupConfig(Identification{Name: name, Version: version})
+
+	cmdCfg := &CmdConfig{
+		Name: "name!",
+		Thing: NestedConfig{
+			Stuff: "stuff!", // value under test...
+		},
+		EmbeddedInlineConfig: EmbeddedInlineConfig{
+			InlineBed: "inline bed!",
+		},
+		EmbeddedConfig: EmbeddedConfig{
+			FreeBed: "free bed!",
+		},
 	}
 
-	tests := []struct {
-		name      string
-		cmdCfg    any
-		cfg       *Config
-		assertRun func(cmd *cobra.Command, args []string)
-		assertCfg func(cfg *CmdConfig)
-		wantErr   require.ErrorAssertionFunc
-	}{
-		{
-			name:   "reads configuration (fangs is wired)",
-			cmdCfg: defaultCmdCfg(),
-			cfg:    NewConfig(name, version),
-			assertCfg: func(cfg *CmdConfig) {
-				assert.Equal(t, &CmdConfig{
-					Name: "name!",
-					Thing: Nested{
-						Stuff: "ruff-ruff!", // note the override
-					},
-					EmbeddedInline: EmbeddedInline{
-						InlineBed: "inline bed!",
-					},
-					Embedded: Embedded{
-						FreeBed: "free bed!",
-					},
-				}, cfg)
-			},
+	t.Setenv("PUPPY_THING_STUFF", "ruff-ruff!")
+
+	app := New(*cfg)
+
+	cmd := app.SetupRootCommand(&cobra.Command{
+		DisableFlagParsing: true,
+		Args:               cobra.ArbitraryArgs,
+		Run: func(cmd *cobra.Command, args []string) {
+			assert.Equal(t, "ruff-ruff!", os.Getenv("PUPPY_THING_STUFF"))
 		},
-		{
-			name: "missing command config does not panic",
-			cfg:  NewConfig(name, version),
+	}, cmdCfg)
+
+	require.NoError(t, cmd.Execute())
+
+	assert.Equal(t, &CmdConfig{
+		Name: "name!",
+		Thing: NestedConfig{
+			Stuff: "ruff-ruff!", // note the override
 		},
-		{
-			name: "runs initializers",
-			cfg: NewConfig(name, version).WithInitializers(
-				func(cfg Config, state State) error {
-					t.Setenv("PUPPY_THING_STUFF", "bark-bark!")
-					return nil
-				},
-			),
-			assertRun: func(cmd *cobra.Command, args []string) {
+		EmbeddedInlineConfig: EmbeddedInlineConfig{
+			InlineBed: "inline bed!",
+		},
+		EmbeddedConfig: EmbeddedConfig{
+			FreeBed: "free bed!",
+		},
+	}, cmdCfg)
+}
+
+func Test_Application_Setup_PassLoggerConstructor(t *testing.T) {
+	name := "puppy"
+	version := "2.0"
+
+	cfg := NewSetupConfig(Identification{Name: name, Version: version}).
+		WithUI(&mockUI{}).
+		WithLoggerConstructor(func(config Config) (logger.Logger, error) {
+			return newMockLogger(), nil
+		})
+
+	app := New(*cfg)
+
+	cmd := app.SetupRootCommand(&cobra.Command{
+		DisableFlagParsing: true,
+		Args:               cobra.ArbitraryArgs,
+		Run:                func(cmd *cobra.Command, args []string) {},
+	})
+
+	require.NoError(t, cmd.Execute())
+	state := app.(*application).State()
+
+	require.NotNil(t, state.Logger)
+	_, ok := state.Logger.(*mockLogger)
+	assert.True(t, ok, "expected logger to be a mock")
+
+	require.NotEmpty(t, state.UIs)
+	_, ok = state.UIs[0].(*mockUI)
+	assert.True(t, ok, "expected UI to be a mock")
+
+	// TODO: missing bus constructor from this test
+}
+
+func Test_Application_Setup_ConfigureLogger(t *testing.T) {
+	name := "puppy"
+	version := "2.0"
+
+	cfg := NewSetupConfig(Identification{Name: name, Version: version}).
+		WithLoggingConfig(LoggingConfig{Level: logger.InfoLevel})
+
+	app := New(*cfg)
+
+	cmd := app.SetupRootCommand(&cobra.Command{
+		DisableFlagParsing: true,
+		Args:               cobra.ArbitraryArgs,
+		Run:                func(cmd *cobra.Command, args []string) {},
+	})
+
+	require.NoError(t, cmd.Execute())
+	state := app.(*application).State()
+
+	require.NotNil(t, state.Logger)
+	c, ok := state.Logger.(logger.Controller)
+	if !ok {
+		t.Fatal("expected logger to be a controller")
+	}
+
+	buf := &bytes.Buffer{}
+	c.SetOutput(buf)
+	state.Logger.Info("test")
+
+	// prove this is a NOT a nil logger
+	assert.Equal(t, "[0000]  INFO test\n", stripAnsi(buf.String()))
+}
+
+func Test_Application_Setup_RunsInitializers(t *testing.T) {
+	name := "puppy"
+	version := "2.0"
+
+	cfg := NewSetupConfig(Identification{Name: name, Version: version}).WithInitializers(
+		func(state *State) error {
+			t.Setenv("PUPPY_THING_STUFF", "bark-bark!")
+			return nil
+		},
+	)
+
+	t.Setenv("PUPPY_THING_STUFF", "ruff-ruff!")
+
+	app := New(*cfg)
+
+	cmd := app.SetupCommand(
+		&cobra.Command{
+			DisableFlagParsing: true,
+			Args:               cobra.ArbitraryArgs,
+			Run: func(cmd *cobra.Command, args []string) {
 				assert.Equal(t, "bark-bark!", os.Getenv("PUPPY_THING_STUFF"))
 			},
-		},
-		{
-			name: "can configure a logger",
-			cfg: NewConfig(name, version).
-				WithLoggingConfig(LoggingConfig{Level: logger.InfoLevel}).
-				WithInitializers(
-					func(cfg Config, state State) error {
-						require.NotNil(t, state.Logger)
-						c, ok := state.Logger.(logger.Controller)
-						if !ok {
-							t.Fatal("expected logger to be a controller")
-						}
-
-						buf := &bytes.Buffer{}
-						c.SetOutput(buf)
-						state.Logger.Info("test")
-
-						// prove this is a NOT a nil logger
-						assert.Equal(t, "[0000]  INFO test\n", stripAnsi(buf.String()))
-						return nil
-					},
-				),
-		},
-		{
-			// TODO: missing bus constructor from this test
-			name: "wires up state via passed constructors",
-			cfg: NewConfig(name, version).
-				WithUIConstructor(func(config Config) ([]UI, error) {
-					return []UI{&mockUI{}}, nil
-				}).
-				WithLoggerConstructor(func(config Config) (logger.Logger, error) {
-					return newMockLogger(), nil
-				}).WithInitializers(
-				func(cfg Config, state State) error {
-					require.NotNil(t, state.Logger)
-					_, ok := state.Logger.(*mockLogger)
-					assert.True(t, ok, "expected logger to be a mock")
-
-					require.NotEmpty(t, state.UIs)
-					_, ok = state.UIs[0].(*mockUI)
-					assert.True(t, ok, "expected UI to be a mock")
-
-					return nil
-				}),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("PUPPY_THING_STUFF", "ruff-ruff!")
-
-			if tt.wantErr == nil {
-				tt.wantErr = require.NoError
-			}
-
-			if tt.assertRun == nil {
-				tt.assertRun = func(cmd *cobra.Command, args []string) {
-					// no-op
-				}
-			}
-
-			app := New(*tt.cfg)
-
-			cmd := &cobra.Command{
-				DisableFlagParsing: true,
-				Args:               cobra.ArbitraryArgs,
-				PreRunE:            app.Setup(tt.cmdCfg),
-				Run:                tt.assertRun,
-			}
-
-			tt.wantErr(t, cmd.Execute())
-			if tt.assertCfg != nil {
-				tt.assertCfg(tt.cmdCfg.(*CmdConfig))
-			}
 		})
-	}
+
+	require.NoError(t, cmd.Execute())
 }
 
 func Test_SetupCommand(t *testing.T) {
 	p := &persistent{}
 
-	persistentPreRunCalled := false
-	root := &cobra.Command{
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			persistentPreRunCalled = true
-			return nil
-		},
-	}
+	cfg := NewSetupConfig(Identification{Name: "myApp", Version: "v2.4.11"}).
+		WithConfigInRootHelp().
+		WithGlobalConfigFlag().
+		WithGlobalLoggingFlags()
 
-	a := New(Config{
-		Name:        "myApp",
-		Version:     "v2.4.11",
-		FangsConfig: fangs.NewConfig("myApp"),
-	})
+	app := New(*cfg)
 
-	root = a.SetupPersistentCommand(root, p)
+	root := app.SetupRootCommand(&cobra.Command{})
+
+	app.AddFlags(root.PersistentFlags(), p)
 
 	preRunCalled := false
 	sub := &cobra.Command{
@@ -267,25 +261,24 @@ func Test_SetupCommand(t *testing.T) {
 	}
 
 	f := &f1{}
-	sub = a.SetupCommand(sub, f)
+	sub = app.SetupCommand(sub, f)
 
 	root.AddCommand(sub)
 
 	usage := sub.UsageString()
 
 	assert.Contains(t, usage, "--config")
-	assert.Contains(t, usage, "--verbosity")
+	assert.Contains(t, usage, "--verbose")
+	assert.Contains(t, usage, "--quiet")
+	assert.Contains(t, usage, "--persistent-config")
+	assert.Contains(t, usage, "--persistent-verbosity")
 	assert.Contains(t, usage, "--output")
 	assert.Contains(t, usage, "--extras")
 	assert.Contains(t, usage, "--online")
 
-	err := root.PersistentPreRunE(sub, []string{})
+	err := sub.PreRunE(sub, []string{})
 	require.NoError(t, err)
 
-	err = sub.PreRunE(sub, []string{})
-	require.NoError(t, err)
-
-	assert.True(t, persistentPreRunCalled)
 	assert.True(t, preRunCalled)
 }
 
@@ -297,8 +290,8 @@ type persistent struct {
 var _ fangs.FlagAdder = (*persistent)(nil)
 
 func (t *persistent) AddFlags(flags fangs.FlagSet) {
-	flags.StringVarP(&t.Config, "config", "c", "the persistent config")
-	flags.CountVarP(&t.Verbosity, "verbosity", "v", "the persistent verbosity")
+	flags.StringVarP(&t.Config, "persistent-config", "", "the persistent config")
+	flags.CountVarP(&t.Verbosity, "persistent-verbosity", "", "the persistent verbosity")
 }
 
 type f1 struct {

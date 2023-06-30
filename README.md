@@ -27,18 +27,19 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/wagoodman/go-partybus"
 	"github.com/anchore/clio"
+	"github.com/anchore/fangs"
 )
 
 // Define your per-command or entire application config as a struct
 type MyCommandConfig struct {
-	TimestampServer string `yaml:"timestamp-server" mapstructure:"timestamp-server"`
+	TimestampServer string `mapstructure:"timestamp-server"`
 	// ...
 }
 
 // ... add cobra flags just as you are used to doing in any other cobra application
-func (c *MyCommandConfig) AddFlags(flags *pflag.FlagSet) {
+func (c *MyCommandConfig) AddFlags(flags fangs.FlagSet) {
 	flags.StringVarP(
-		&c.TimestampServer, "timestamp-server", "", c.TimestampServer,
+		&c.TimestampServer, "timestamp-server", "",
 		"URL to a timestamp server to use for timestamping the signature",
 	)
 	// ...
@@ -49,36 +50,29 @@ func MyCommand(app clio.Application) *cobra.Command {
 		TimestampServer: "https://somewhere.out/there", // a default value
 	}
 
-	return &cobra.Command{
+	return app.SetupCommand(&cobra.Command{
 		Use:     "my-command",
 		PreRunE: app.Setup(cfg),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			state := app.State()
-			var log = state.Logger
-			var bus partybus.Publisher = state.Bus
-
-			log.Infof("hi! pinging the timestamp server: %s", cfg.TimestampServer)
-
-			type myRichObject struct {
-				data io.Reader
-				// status progress.Progressable
-			}
-
-			bus.Publish(partybus.Event{
-				Type: "something-notable",
-				//Value:  myRichObject{...},
-			})
+			// perform command functions here
 			return nil
 		},
-	}
+	}, cfg)
 }
 
 func main() {
-	cfg := clio.NewConfig("awesome", "v1.0.0")
-	app := clio.New(*cfg)
+	cfg := clio.NewSetupConfig(clio.Identification{
+		Name: "awesome",
+		Version: "v1.0.0",
+    })
 
-	cmd := MyCommand(app)
-	if err := cmd.Execute(); err != nil {
+	app := clio.New(*cfg)
+	
+	root := app.SetupRootCommand(&cobra.Command{})
+
+	root.AddCommand(MyCommand(app))
+
+	if err := root.Execute(); err != nil {
 		os.Exit(1)
 	}
 }
