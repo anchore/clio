@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/anchore/fangs v0.0.0-20230628163043-a51c5a39b097
 	github.com/anchore/go-logger v0.0.0-20230531193951-db5ae83e7dbe
-	github.com/gookit/color v1.5.3
+	github.com/gookit/color v1.5.4
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/pborman/indent v1.2.1
 	github.com/pkg/profile v1.7.0
