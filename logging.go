@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"strings"
 
+	upstreamLogrus "github.com/sirupsen/logrus"
 	"golang.org/x/term"
 
 	"github.com/anchore/fangs"
@@ -42,6 +44,7 @@ func DefaultLogger(clioCfg Config, store redact.Store) (logger.Logger, error) {
 			EnableConsole: cfg.Verbosity > 0 && !cfg.Quiet,
 			FileLocation:  cfg.FileLocation,
 			Level:         cfg.Level,
+			Formatter:     adaptLogFormatter(logrus.DefaultTextFormatter()),
 		},
 	)
 	if err != nil {
@@ -53,6 +56,41 @@ func DefaultLogger(clioCfg Config, store redact.Store) (logger.Logger, error) {
 	}
 
 	return l, nil
+}
+
+func adaptLogFormatter(cfg upstreamLogrus.Formatter) upstreamLogrus.Formatter {
+	var ok bool
+	var textFormatter *logrus.TextFormatter
+	textFormatter, ok = cfg.(*logrus.TextFormatter)
+	if !ok {
+		return cfg
+	}
+	// following the convention from https://no-color.org/
+	noColor := toBool(os.Getenv("NO_COLOR"))
+
+	// following the convention from:
+	// - http://bixense.com/clicolors/
+	// - https://github.com/charmbracelet/bubbletea/pull/221
+	// - https://github.com/muesli/termenv
+	forceColor := toBool(os.Getenv("CLICOLOR_FORCE"))
+
+	if noColor {
+		textFormatter.DisableColors = true
+	}
+
+	if !noColor && forceColor {
+		textFormatter.ForceColors = true
+	}
+	return textFormatter
+}
+
+func toBool(str string) bool {
+	str = strings.ToLower(str)
+	switch strings.ToLower(str) {
+	case "true", "1", "t", "y", "yes", "on", "enabled":
+		return true
+	}
+	return false
 }
 
 var _ LoggerConstructor = DefaultLogger

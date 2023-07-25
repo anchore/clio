@@ -3,7 +3,9 @@ package clio
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io/fs"
+	"os"
 	"testing"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/anchore/fangs"
 	"github.com/anchore/go-logger"
 	"github.com/anchore/go-logger/adapter/discard"
+	"github.com/anchore/go-logger/adapter/logrus"
 	"github.com/anchore/go-logger/adapter/redact"
 )
 
@@ -387,6 +390,60 @@ func TestLoggingConfig_selectLevel(t *testing.T) {
 			got, err := tt.cfg.selectLevel()
 			assert.Equal(t, tt.want, got)
 			tt.wantErr(t, err)
+		})
+	}
+}
+
+func Test_adaptLogFormatter(t *testing.T) {
+	boolRef := func(b bool) *bool {
+		return &b
+	}
+	tests := []struct {
+		name              string
+		noColors          *bool
+		forceColors       *bool
+		wantDisableColors bool
+		wantForceColors   bool
+	}{
+		{
+			name:              "no overrides = leave sane defaults",
+			wantDisableColors: false,
+			wantForceColors:   false,
+		},
+		{
+			name:              "no colors = disable colors",
+			noColors:          boolRef(true),
+			wantDisableColors: true,
+		},
+		{
+			name:            "force colors = force colors",
+			forceColors:     boolRef(true),
+			wantForceColors: true,
+		},
+		{
+			name:              "no colors + force colors = no colors",
+			noColors:          boolRef(true),
+			forceColors:       boolRef(true),
+			wantDisableColors: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.noColors != nil {
+				t.Setenv("NO_COLOR", fmt.Sprintf("%t", *tt.noColors))
+			} else {
+				require.NoError(t, os.Unsetenv("NO_COLOR"))
+			}
+			if tt.forceColors != nil {
+				t.Setenv("CLICOLOR_FORCE", fmt.Sprintf("%t", *tt.forceColors))
+			} else {
+				require.NoError(t, os.Unsetenv("CLICOLOR_FORCE"))
+			}
+
+			cfg := adaptLogFormatter(logrus.DefaultTextFormatter())
+			textFormatter := cfg.(*logrus.TextFormatter)
+			assert.Equal(t, tt.wantForceColors, textFormatter.ForceColors)
+			assert.Equal(t, tt.wantDisableColors, textFormatter.DisableColors)
 		})
 	}
 }
