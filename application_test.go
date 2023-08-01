@@ -2,7 +2,10 @@ package clio
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"os"
+	"os/exec"
 	"regexp"
 	"testing"
 
@@ -307,4 +310,46 @@ func (t *f1) AddFlags(flags fangs.FlagSet) {
 	flags.StringVarP(&t.Output, "output", "o", "the flag output")
 	flags.BoolVarP(&t.Extras, "extras", "", "the flag extras")
 	flags.BoolPtrVarP(&t.Online, "online", "", "the flag online")
+}
+
+func Test_Run(t *testing.T) {
+	runCalled := false
+	app := New(*NewSetupConfig(Identification{}).WithNoBus())
+	app.SetupRootCommand(&cobra.Command{
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runCalled = true
+			return nil
+		},
+	})
+	app.Run()
+	require.True(t, runCalled)
+}
+
+func Test_RunPanicWithoutRootCommand(t *testing.T) {
+	require.PanicsWithError(t, setupRootCommandNotCalledError, func() {
+		app := New(*NewSetupConfig(Identification{}).WithNoBus())
+		app.Run()
+	})
+}
+
+func Test_RunExitError(t *testing.T) {
+	if os.Getenv("CLIO_RUN_EXIT_ERROR") == "YES" {
+		app := New(*NewSetupConfig(Identification{}).WithNoBus())
+		app.SetupRootCommand(&cobra.Command{
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return fmt.Errorf("an error occurred")
+			},
+		})
+		app.Run()
+		return
+	}
+
+	cmd := exec.Command(os.Args[0], "-test.run=Test_RunExitError")
+	cmd.Env = append(os.Environ(), "CLIO_RUN_EXIT_ERROR=YES")
+	err := cmd.Run()
+	var e *exec.ExitError
+	if errors.As(err, &e) && !e.Success() {
+		return
+	}
+	t.Fatalf("process ran with err %v, want exit status 1", err)
 }
