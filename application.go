@@ -3,6 +3,8 @@ package clio
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/signal"
 	"strings"
 
 	"github.com/gookit/color"
@@ -25,6 +27,7 @@ type Application interface {
 	AddFlags(flags *pflag.FlagSet, cfgs ...any)
 	SetupCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command
 	SetupRootCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command
+	Run()
 }
 
 type application struct {
@@ -105,13 +108,13 @@ func (a *application) runInitializers() error {
 	return nil
 }
 
-func (a *application) Run(fn func(cmd *cobra.Command, args []string) error) func(cmd *cobra.Command, args []string) error {
+func (a *application) WrapRunE(fn func(cmd *cobra.Command, args []string) error) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		return a.run(cmd.Context(), async(cmd, args, fn))
+		return a.execute(cmd.Context(), async(cmd, args, fn))
 	}
 }
 
-func (a *application) run(ctx context.Context, errs <-chan error) error {
+func (a *application) execute(ctx context.Context, errs <-chan error) error {
 	if a.state.Config.Dev != nil {
 		switch a.state.Config.Dev.Profile {
 		case ProfileCPU:
@@ -189,6 +192,55 @@ func (a *application) SetupCommand(cmd *cobra.Command, cfgs ...any) *cobra.Comma
 	return a.setupCommand(cmd, cmd.Flags(), &cmd.PreRunE, cfgs...)
 }
 
+func (a *application) Run() {
+	if a.root == nil {
+		panic(fmt.Errorf(setupRootCommandNotCalledError))
+	}
+
+	cmd := a.root
+	log := a.state.Logger
+
+	// drive application control from a single context which can be cancelled (notifying the event loop to stop)
+	ctx, cancel := context.WithCancel(context.Background())
+	cmd.SetContext(ctx)
+
+	// note: it is important to always do signal handling from the main package. In this way if quill is used
+	// as a lib a refactor would not need to be done (since anything from the main package cannot be imported this
+	// nicely enforces this constraint)
+	signals := make(chan os.Signal, 10) // Note: A buffered channel is recommended for this; see https://golang.org/pkg/os/signal/#Notify
+	signal.Notify(signals, os.Interrupt)
+
+	var exitCode int
+
+	defer func() {
+		if exitCode != 0 {
+			os.Exit(exitCode)
+		}
+	}()
+
+	defer func() {
+		signal.Stop(signals)
+		cancel()
+	}()
+
+	go func() {
+		select {
+		case <-signals: // first signal, cancel context
+			log.Trace("signal interrupt, stop requested")
+			cancel()
+		case <-ctx.Done():
+		}
+		<-signals // second signal, hard exit
+		log.Trace("signal interrupt, killing")
+		exitCode = 1
+	}()
+
+	if err := cmd.Execute(); err != nil {
+		color.Red.Println(strings.TrimSpace(err.Error()))
+		exitCode = 1
+	}
+}
+
 func (a *application) SetupRootCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command {
 	a.root = cmd
 	return a.setupRootCommand(cmd, cfgs...)
@@ -237,7 +289,7 @@ func (a *application) setupCommand(cmd *cobra.Command, flags *pflag.FlagSet, fn 
 	}
 
 	if cmd.RunE != nil {
-		cmd.RunE = a.Run(cmd.RunE)
+		cmd.RunE = a.WrapRunE(cmd.RunE)
 	}
 
 	cmd.SilenceUsage = true
@@ -286,3 +338,5 @@ func nonNil(a ...any) []any {
 	}
 	return ret
 }
+
+const setupRootCommandNotCalledError = "SetupRootCommand() must be called with the root command"
