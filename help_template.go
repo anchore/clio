@@ -2,6 +2,7 @@ package clio
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/spf13/cobra"
 
@@ -55,10 +56,14 @@ func showConfigInRootHelp(a *application) {
 		// note: since all commands tend to share help functions it's important to only patch the example
 		// when there is no parent command (i.e. the root command).
 		if cmd == a.root {
-			cfgs := append([]any{&appInitializer{a: a}}, a.state.Config.FromCommands...)
-			_, err := a.loadConfigs(cmd, false, cfgs...)
-			if err != nil {
-				panic(err)
+			cfgs := append([]any{&appInitializer{a: a}, &a.state.Config}, a.state.Config.FromCommands...)
+			for _, cfg := range cfgs {
+				// load each config individually, as there may be conflicting names / types that will cause
+				// viper to fail to read them all and panic
+				if err := fangs.Load(a.setupConfig.FangsConfig, cmd, cfg); err != nil {
+					t := reflect.TypeOf(cfg)
+					panic(fmt.Sprintf("error loading config object: `%s:%s`: %s", t.PkgPath(), t.Name(), err.Error()))
+				}
 			}
 			summary := a.summarizeConfig(cmd)
 			if a.state.RedactStore != nil {

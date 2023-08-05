@@ -24,6 +24,7 @@ type Initializer func(*State) error
 type postConstruct func(*application)
 
 type Application interface {
+	ID() Identification
 	AddFlags(flags *pflag.FlagSet, cfgs ...any)
 	SetupCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command
 	SetupRootCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command
@@ -50,6 +51,10 @@ func New(cfg SetupConfig) Application {
 	}
 }
 
+func (a *application) ID() Identification {
+	return a.setupConfig.ID
+}
+
 // State returns all application configuration and resources to be either used or replaced by the caller. Note: this is only valid after the application has been setup (cobra PreRunE has run).
 func (a *application) State() *State {
 	return &a.state
@@ -64,7 +69,7 @@ func (a *application) Setup(cfgs ...any) func(cmd *cobra.Command, args []string)
 		// as early as possible before the final configuration is logged. This allows for a couple things:
 		// 1. user initializers to account for taking action before logging the final configuration (such as log redactions).
 		// 2. other user-facing PostLoad() functions to be able to use the logger, bus, etc. as early as possible. (though it's up to the caller on how these objects are made accessible)
-		allConfigs, err := a.loadConfigs(cmd, true, cfgs...)
+		allConfigs, err := a.loadConfigs(cmd, cfgs...)
 		if err != nil {
 			return err
 		}
@@ -78,13 +83,12 @@ func (a *application) Setup(cfgs ...any) func(cmd *cobra.Command, args []string)
 	}
 }
 
-func (a *application) loadConfigs(cmd *cobra.Command, withResources bool, cfgs ...any) ([]any, error) {
-	allConfigs := []any{&a.state.Config} // 1. process the core application configurations first (logging and development)
-	if withResources {
-		allConfigs = append(allConfigs, a) // 2. enables application.PostLoad() to be called, initializing all state (bus, logger, ui, etc.)
+func (a *application) loadConfigs(cmd *cobra.Command, cfgs ...any) ([]any, error) {
+	allConfigs := []any{
+		&a.state.Config, // 1. process the core application configurations first (logging and development)
+		a,               // 2. enables application.PostLoad() to be called, initializing all state (bus, logger, ui, etc.)
 	}
 	allConfigs = append(allConfigs, cfgs...) // 3. allow for all other configs to be loaded + call PostLoad()
-	allConfigs = nonNil(allConfigs...)
 
 	if err := fangs.Load(a.setupConfig.FangsConfig, cmd, allConfigs...); err != nil {
 		return nil, fmt.Errorf("invalid application config: %v", err)
@@ -327,16 +331,6 @@ func async(cmd *cobra.Command, args []string, f func(cmd *cobra.Command, args []
 		}
 	}()
 	return errs
-}
-
-func nonNil(a ...any) []any {
-	var ret []any
-	for _, v := range a {
-		if v != nil {
-			ret = append(ret, v)
-		}
-	}
-	return ret
 }
 
 const setupRootCommandNotCalledError = "SetupRootCommand() must be called with the root command"
