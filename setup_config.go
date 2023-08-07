@@ -32,7 +32,7 @@ func NewSetupConfig(id Identification) *SetupConfig {
 		LoggerConstructor: DefaultLogger,
 		BusConstructor:    newBus,
 		UIConstructor:     newUI,
-		FangsConfig:       fangs.NewConfig(id.Name),
+		FangsConfig:       fangs.NewConfig(id.Name).WithConfigEnvVar(),
 		DefaultLoggingConfig: &LoggingConfig{
 			Level: logger.WarnLevel,
 		},
