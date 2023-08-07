@@ -3,7 +3,7 @@ module github.com/anchore/clio
 go 1.18
 
 require (
-	github.com/anchore/fangs v0.0.0-20230628163043-a51c5a39b097
+	github.com/anchore/fangs v0.0.0-20230807173929-13c94c86f47e
 	github.com/anchore/go-logger v0.0.0-20230725134548-c21dafa1ec5a
 	github.com/gookit/color v1.5.4
 	github.com/hashicorp/go-multierror v1.1.1
@@ -48,5 +48,3 @@ require (
 	golang.org/x/text v0.9.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 )
-
-replace github.com/anchore/fangs => github.com/kzantow-anchore/fangs v0.0.0-20230807164941-ce2d6c9021c8
