@@ -7,6 +7,7 @@ require (
 	github.com/anchore/go-logger v0.0.0-20230725134548-c21dafa1ec5a
 	github.com/gookit/color v1.5.4
 	github.com/hashicorp/go-multierror v1.1.1
+	github.com/iancoleman/strcase v0.3.0
 	github.com/pborman/indent v1.2.1
 	github.com/pkg/profile v1.7.0
 	github.com/sirupsen/logrus v1.9.3
