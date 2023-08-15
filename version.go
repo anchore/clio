@@ -1,11 +1,13 @@
 package clio
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
 	"runtime"
 
+	"github.com/iancoleman/strcase"
 	"github.com/spf13/cobra"
 )
 
@@ -25,7 +27,9 @@ type runtimeInfo struct {
 	Platform  string `json:"platform,omitempty"`  // GOOS and GOARCH at build-time
 }
 
-func VersionCommand(id Identification) *cobra.Command {
+type additions = func() (name string, value string)
+
+func VersionCommand(id Identification, additions ...additions) *cobra.Command {
 	var format string
 
 	info := runtimeInfo{
@@ -52,7 +56,38 @@ func VersionCommand(id Identification) *cobra.Command {
 				printIfNotEmpty("GoVersion", info.GoVersion)
 				printIfNotEmpty("Compiler", info.Compiler)
 
+				for _, addition := range additions {
+					name, value := addition()
+					printIfNotEmpty(name, value)
+				}
 			case "json":
+				var info any = info
+
+				if len(additions) > 0 {
+					buf := &bytes.Buffer{}
+					enc := json.NewEncoder(buf)
+					enc.SetEscapeHTML(false)
+					err := enc.Encode(info)
+					if err != nil {
+						return fmt.Errorf("failed to show version information: %w", err)
+					}
+
+					var data map[string]any
+					dec := json.NewDecoder(buf)
+					err = dec.Decode(&data)
+					if err != nil {
+						return fmt.Errorf("failed to show version information: %w", err)
+					}
+
+					for _, addition := range additions {
+						name, value := addition()
+						name = strcase.ToLowerCamel(name)
+						data[name] = value
+					}
+
+					info = data
+				}
+
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetEscapeHTML(false)
 				enc.SetIndent("", " ")
