@@ -114,7 +114,17 @@ func (a *application) runInitializers() error {
 
 func (a *application) WrapRunE(fn func(cmd *cobra.Command, args []string) error) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		return a.execute(cmd.Context(), async(cmd, args, fn))
+		wrapper := func(cmd *cobra.Command, args []string) error {
+			defer func() {
+				// when the worker has completed (or errored) we want to exit the event loop gracefully
+				if a.state.Bus != nil {
+					a.state.Bus.Publish(ExitEvent(false))
+				}
+			}()
+			return fn(cmd, args)
+		}
+
+		return a.execute(cmd.Context(), async(cmd, args, wrapper))
 	}
 }
 
@@ -201,12 +211,9 @@ func (a *application) Run() {
 		panic(fmt.Errorf(setupRootCommandNotCalledError))
 	}
 
-	cmd := a.root
-	log := a.state.Logger
-
 	// drive application control from a single context which can be cancelled (notifying the event loop to stop)
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd.SetContext(ctx)
+	a.root.SetContext(ctx)
 
 	// note: it is important to always do signal handling from the main package. In this way if quill is used
 	// as a lib a refactor would not need to be done (since anything from the main package cannot be imported this
@@ -230,16 +237,16 @@ func (a *application) Run() {
 	go func() {
 		select {
 		case <-signals: // first signal, cancel context
-			log.Trace("signal interrupt, stop requested")
+			a.state.Logger.Trace("signal interrupt, stop requested")
 			cancel()
 		case <-ctx.Done():
 		}
 		<-signals // second signal, hard exit
-		log.Trace("signal interrupt, killing")
+		a.state.Logger.Trace("signal interrupt, killing")
 		exitCode = 1
 	}()
 
-	if err := cmd.Execute(); err != nil {
+	if err := a.root.Execute(); err != nil {
 		color.Red.Println(strings.TrimSpace(err.Error()))
 		exitCode = 1
 	}

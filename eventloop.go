@@ -3,6 +3,7 @@ package clio
 import (
 	"context"
 	"errors"
+	"os"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/wagoodman/go-partybus"
@@ -67,9 +68,36 @@ func eventloop(ctx context.Context, log logger.Logger, subscription *partybus.Su
 				events = nil
 				continue
 			}
+
+			if e.Type == ExitEventType {
+				events = nil
+
+				if e.Value == os.Interrupt {
+					// on top of listening to signals from the OS, we also listen to interrupt events from the UI.
+					// Why provide two ways to do the same thing? In an application that has a UI where the terminal
+					// has been set to raw mode, ctrl-c will not register as an interrupt signal to the application.
+					// Instead the UI will capture the ctrl-c and need to signal the event loop to exit gracefully.
+					// Using the same signal channel for both OS signals and UI signals is not advisable and requires
+					// injecting the channel into the UI (also not advisable). Providing a bus event for the UI to
+					// use is a better solution here.
+
+					log.Trace("signal interrupt")
+
+					workerErrs = nil
+					forceTeardown = true
+				} else {
+					log.Trace("signal exit")
+				}
+
+				if subscription != nil {
+					_ = subscription.Unsubscribe()
+				}
+			}
+
 			if ux == nil {
 				continue
 			}
+
 			if err := ux.Handle(e); err != nil {
 				if errors.Is(err, partybus.ErrUnsubscribe) {
 					events = nil
