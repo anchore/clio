@@ -353,3 +353,30 @@ func Test_RunExitError(t *testing.T) {
 	}
 	t.Fatalf("process ran with err %v, want exit status 1", err)
 }
+
+func Test_Run_InvokesBusExit(t *testing.T) {
+	runCalled := false
+
+	var sub *partybus.Subscription
+
+	app := New(*NewSetupConfig(Identification{}).WithInitializers(
+		func(state *State) error {
+			sub = state.Bus.Subscribe()
+			return nil
+		},
+	))
+	app.SetupRootCommand(&cobra.Command{
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runCalled = true
+			return nil
+		},
+	})
+	app.Run()
+	require.True(t, runCalled)
+
+	events := sub.Events()
+
+	e := <-events
+
+	assert.Equal(t, e.Type, ExitEventType)
+}

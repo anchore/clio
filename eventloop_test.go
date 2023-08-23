@@ -38,9 +38,9 @@ func (u *uiMock) Handle(event partybus.Event) error {
 	return u.Called(event).Error(0)
 }
 
-func (u *uiMock) Teardown(_ bool) error {
+func (u *uiMock) Teardown(force bool) error {
 	u.t.Logf("UI Teardown called")
-	return u.Called().Error(0)
+	return u.Called(force).Error(0)
 }
 
 func Test_EventLoop_gracefulExit(t *testing.T) {
@@ -80,7 +80,7 @@ func Test_EventLoop_gracefulExit(t *testing.T) {
 		ux.On("Handle", finalEvent).Return(nil)
 		// ensure the mock sees basic setup/teardown events
 		ux.On("Setup", mock.AnythingOfType("func() error")).Return(nil)
-		ux.On("Teardown").Return(nil)
+		ux.On("Teardown", false).Return(nil)
 
 		assert.NoError(t,
 			eventloop(
@@ -131,7 +131,7 @@ func Test_EventLoop_workerError(t *testing.T) {
 
 		// ensure the mock sees basic setup/teardown events
 		ux.On("Setup", mock.AnythingOfType("func() error")).Return(nil)
-		ux.On("Teardown").Return(nil)
+		ux.On("Teardown", true).Return(nil)
 
 		// ensure we see an error returned
 		assert.ErrorIs(t,
@@ -190,7 +190,7 @@ func Test_EventLoop_unsubscribeError(t *testing.T) {
 		ux.On("Handle", finalEvent).Return(partybus.ErrUnsubscribe)
 		// ensure the mock sees basic setup/teardown events
 		ux.On("Setup", mock.AnythingOfType("func() error")).Return(nil)
-		ux.On("Teardown").Return(nil)
+		ux.On("Teardown", false).Return(nil)
 
 		// unsubscribe errors should be handled and ignored, not propagated. We are additionally asserting that
 		// this case is handled as a controlled shutdown (this test should not timeout)
@@ -249,7 +249,7 @@ func Test_EventLoop_handlerError(t *testing.T) {
 		ux.On("Handle", finalEvent).Return(finalEvent.Error)
 		// ensure the mock sees basic setup/teardown events
 		ux.On("Setup", mock.AnythingOfType("func() error")).Return(nil)
-		ux.On("Teardown").Return(nil)
+		ux.On("Teardown", false).Return(nil)
 
 		// handle errors SHOULD propagate the event loop. We are additionally asserting that this case is
 		// handled as a controlled shutdown (this test should not timeout)
@@ -292,7 +292,7 @@ func Test_EventLoop_contextCancelStopExecution(t *testing.T) {
 
 		// ensure the mock sees basic setup/teardown events
 		ux.On("Setup", mock.AnythingOfType("func() error")).Return(nil)
-		ux.On("Teardown").Return(nil)
+		ux.On("Teardown", true).Return(nil)
 
 		go cancel()
 
@@ -304,6 +304,122 @@ func Test_EventLoop_contextCancelStopExecution(t *testing.T) {
 				worker(),
 				ux,
 			),
+		)
+
+		ux.AssertExpectations(t)
+	}
+
+	// if there is a bug, then there is a risk of the event loop never returning
+	testWithTimeout(t, 5*time.Second, test)
+}
+
+func Test_EventLoop_ExitEventStopExecution(t *testing.T) {
+	test := func(t *testing.T) {
+
+		testBus := partybus.NewBus()
+		subscription := testBus.Subscribe()
+		t.Cleanup(testBus.Close)
+
+		finalEvent := ExitEvent(false)
+
+		worker := func() <-chan error {
+			ret := make(chan error)
+			go func() {
+				t.Log("worker running")
+				// send an empty item (which is ignored) ensuring we've entered the select statement,
+				// then close (a partial shutdown).
+				ret <- nil
+				t.Log("worker sent nothing")
+				close(ret)
+				t.Log("worker closed")
+				// do the other half of the shutdown
+				testBus.Publish(finalEvent)
+				t.Log("worker published final event")
+			}()
+			return ret
+		}
+
+		ux := &uiMock{
+			t: t,
+			// don't force unsubscribe, allow exit to cause it
+		}
+
+		// ensure the mock sees at least the final event... note the event error is propagated
+		ux.On("Handle", finalEvent).Return(nil)
+		// ensure the mock sees basic setup/teardown events
+		ux.On("Setup", mock.AnythingOfType("func() error")).Return(nil)
+		ux.On("Teardown", false).Return(nil)
+
+		// handle errors SHOULD propagate the event loop. We are additionally asserting that this case is
+		// handled as a controlled shutdown (this test should not timeout)
+		assert.ErrorIs(t,
+			eventloop(
+				context.Background(),
+				discard.New(),
+				subscription,
+				worker(),
+				ux,
+			),
+			finalEvent.Error,
+			"should have seen a event error, but did not",
+		)
+
+		ux.AssertExpectations(t)
+	}
+
+	// if there is a bug, then there is a risk of the event loop never returning
+	testWithTimeout(t, 5*time.Second, test)
+}
+
+func Test_EventLoop_InterruptEventKillExecution(t *testing.T) {
+	test := func(t *testing.T) {
+
+		testBus := partybus.NewBus()
+		subscription := testBus.Subscribe()
+		t.Cleanup(testBus.Close)
+
+		finalEvent := ExitEvent(true)
+
+		worker := func() <-chan error {
+			ret := make(chan error)
+			go func() {
+				t.Log("worker running")
+				// send an empty item (which is ignored) ensuring we've entered the select statement,
+				// then close (a partial shutdown).
+				ret <- nil
+				t.Log("worker sent nothing")
+				close(ret)
+				t.Log("worker closed")
+				// do the other half of the shutdown
+				testBus.Publish(finalEvent)
+				t.Log("worker published final event")
+			}()
+			return ret
+		}
+
+		ux := &uiMock{
+			t: t,
+			// don't force unsubscribe, allow exit to cause it
+		}
+
+		// ensure the mock sees at least the final event... note the event error is propagated
+		ux.On("Handle", finalEvent).Return(nil)
+		// ensure the mock sees basic setup/teardown events
+		ux.On("Setup", mock.AnythingOfType("func() error")).Return(nil)
+		ux.On("Teardown", true).Return(nil)
+
+		// handle errors SHOULD propagate the event loop. We are additionally asserting that this case is
+		// handled as a controlled shutdown (this test should not timeout)
+		assert.ErrorIs(t,
+			eventloop(
+				context.Background(),
+				discard.New(),
+				subscription,
+				worker(),
+				ux,
+			),
+			finalEvent.Error,
+			"should have seen a event error, but did not",
 		)
 
 		ux.AssertExpectations(t)
@@ -352,7 +468,7 @@ func Test_EventLoop_uiTeardownError(t *testing.T) {
 		ux.On("Handle", finalEvent).Return(nil)
 		// ensure the mock sees basic setup/teardown events
 		ux.On("Setup", mock.AnythingOfType("func() error")).Return(nil)
-		ux.On("Teardown").Return(teardownError)
+		ux.On("Teardown", false).Return(teardownError)
 
 		// ensure we see an error returned
 		assert.ErrorIs(t,
