@@ -24,6 +24,7 @@ type SetupConfig struct {
 	UIConstructor     UIConstructor
 	Initializers      []Initializer
 	postConstructs    []postConstruct
+	postRuns          []PostRun
 }
 
 func NewSetupConfig(id Identification) *SetupConfig {
@@ -94,6 +95,11 @@ func (c *SetupConfig) WithNoLogging() *SetupConfig {
 
 func (c *SetupConfig) WithInitializers(initializers ...Initializer) *SetupConfig {
 	c.Initializers = append(c.Initializers, initializers...)
+	return c
+}
+
+func (c *SetupConfig) WithPostRuns(postRuns ...PostRun) *SetupConfig {
+	c.postRuns = append(c.postRuns, postRuns...)
 	return c
 }
 

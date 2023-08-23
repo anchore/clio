@@ -21,6 +21,8 @@ import (
 
 type Initializer func(*State) error
 
+type PostRun func(*State, error)
+
 type postConstruct func(*application)
 
 type Application interface {
@@ -112,16 +114,37 @@ func (a *application) runInitializers() error {
 	return nil
 }
 
+func (a *application) runPostRuns(err error) {
+	for _, postRun := range a.setupConfig.postRuns {
+		a.runPostRun(postRun, err)
+	}
+}
+
+func (a *application) runPostRun(fn PostRun, err error) {
+	defer func() {
+		// handle panics in each postRun -- the app may already be in a panicking situation,
+		// this recover should not affect the original panic, as it is being run in a
+		// different call stack from the original panic, but the original panic should
+		// return without confusing things when a postRun also fails by panic
+		if v := recover(); v != nil {
+			a.state.Logger.Debugf("panic while calling postRun: %v", v)
+		}
+	}()
+	fn(&a.state, err)
+}
+
 func (a *application) WrapRunE(fn func(cmd *cobra.Command, args []string) error) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		wrapper := func(cmd *cobra.Command, args []string) error {
+		wrapper := func(cmd *cobra.Command, args []string) (err error) {
 			defer func() {
 				// when the worker has completed (or errored) we want to exit the event loop gracefully
 				if a.state.Bus != nil {
 					a.state.Bus.Publish(ExitEvent(false))
 				}
 			}()
-			return fn(cmd, args)
+			defer a.runPostRuns(err)
+			err = fn(cmd, args)
+			return
 		}
 
 		return a.execute(cmd.Context(), async(cmd, args, wrapper))
