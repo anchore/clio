@@ -56,7 +56,7 @@ func showConfigInRootHelp(a *application) {
 		// note: since all commands tend to share help functions it's important to only patch the example
 		// when there is no parent command (i.e. the root command).
 		if cmd == a.root {
-			cfgs := append([]any{&appInitializer{a: a}, &a.state.Config}, a.state.Config.FromCommands...)
+			cfgs := append([]any{&a.state.Config, a}, a.state.Config.FromCommands...)
 			for _, cfg := range cfgs {
 				// load each config individually, as there may be conflicting names / types that will cause
 				// viper to fail to read them all and panic
@@ -73,14 +73,4 @@ func showConfigInRootHelp(a *application) {
 		}
 		helpFn(cmd, args)
 	})
-}
-
-type appInitializer struct {
-	a *application
-}
-
-var _ fangs.PostLoader = (*appInitializer)(nil)
-
-func (a *appInitializer) PostLoad() error {
-	return a.a.runInitializers()
 }
