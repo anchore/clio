@@ -242,6 +242,34 @@ func Test_Application_Setup_RunsInitializers(t *testing.T) {
 	require.NoError(t, cmd.Execute())
 }
 
+func Test_Application_Setup_RunsPostRuns(t *testing.T) {
+	name := "puppy"
+	version := "2.0"
+
+	cfg := NewSetupConfig(Identification{Name: name, Version: version}).WithPostRuns(
+		func(state *State, err error) {
+			t.Setenv("PUPPY_THING_STUFF", "bark-bark!")
+		},
+	)
+
+	t.Setenv("PUPPY_THING_STUFF", "ruff-ruff!")
+
+	app := New(*cfg)
+
+	app.SetupRootCommand(
+		&cobra.Command{
+			DisableFlagParsing: true,
+			Args:               cobra.ArbitraryArgs,
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return nil
+			},
+		})
+
+	app.Run()
+
+	assert.Equal(t, "bark-bark!", os.Getenv("PUPPY_THING_STUFF"))
+}
+
 func Test_SetupCommand(t *testing.T) {
 	p := &persistent{}
 
