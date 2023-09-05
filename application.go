@@ -57,6 +57,10 @@ func (a *application) ID() Identification {
 	return a.setupConfig.ID
 }
 
+func (a *application) RootCommand() *cobra.Command {
+	return a.root
+}
+
 // State returns all application configuration and resources to be either used or replaced by the caller. Note: this is only valid after the application has been setup (cobra PreRunE has run).
 func (a *application) State() *State {
 	return &a.state
