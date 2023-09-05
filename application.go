@@ -27,10 +27,15 @@ type postConstruct func(*application)
 
 type Application interface {
 	ID() Identification
+	RootCommand() *cobra.Command
+	Run()
+}
+
+type ApplicationBuilder interface {
+	Application
 	AddFlags(flags *pflag.FlagSet, cfgs ...any)
 	SetupCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command
 	SetupRootCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command
-	Run()
 }
 
 type application struct {
@@ -44,7 +49,7 @@ var _ interface {
 	fangs.PostLoader
 } = (*application)(nil)
 
-func New(cfg SetupConfig) Application {
+func New(cfg SetupConfig) ApplicationBuilder {
 	return &application{
 		setupConfig: cfg,
 		state: State{
