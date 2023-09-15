@@ -26,7 +26,7 @@ type runtimeInfo struct {
 	Platform  string `json:"platform,omitempty"`  // GOOS and GOARCH at build-time
 }
 
-type versionAddition = func(format string) (name string, value any)
+type versionAddition = func() (name string, value any)
 
 func VersionCommand(id Identification, additions ...versionAddition) *cobra.Command {
 	var format string
@@ -70,7 +70,7 @@ func versionInfo(info runtimeInfo, format string, additions ...versionAddition) 
 		var add []additionType
 		pad := 10
 		for _, addition := range additions {
-			name, value := addition(format)
+			name, value := addition()
 			if fmt.Sprintf("%v", value) == "" {
 				continue
 			}
@@ -112,7 +112,7 @@ func versionInfo(info runtimeInfo, format string, additions ...versionAddition) 
 			}
 
 			for _, addition := range additions {
-				name, value := addition(format)
+				name, value := addition()
 				name = strcase.ToLowerCamel(name)
 				data[name] = value
 			}

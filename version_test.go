@@ -28,7 +28,7 @@ Addition With A Long Line: some-value
 		GoVersion: "go1.21.1",
 		Compiler:  "gc",
 		Platform:  "linux/amd64",
-	}, "text", func(_ string) (name string, value any) {
+	}, "text", func() (name string, value any) {
 		return "Addition With A Long Line", "some-value"
 	})
 	require.NoError(t, err)
@@ -38,7 +38,7 @@ Addition With A Long Line: some-value
 func Test_versionInfoJSON(t *testing.T) {
 	expected := `{
 		"additionalValue": "some-value",
-		"someValueWithSpaces": "some-other-value",
+		"someValueWithSpacesAndUpper": "some-other-value",
 		"application": "the-name",
 		"buildDate": "the-build-date",
 		"compiler": "gc",
@@ -59,10 +59,10 @@ func Test_versionInfoJSON(t *testing.T) {
 		GoVersion: "go1.21.1",
 		Compiler:  "gc",
 		Platform:  "linux/amd64",
-	}, "json", func(_ string) (name string, value any) {
+	}, "json", func() (name string, value any) {
 		return "additionalValue", "some-value"
-	}, func(_ string) (name string, value any) {
-		return "Some Value With Spaces", "some-other-value"
+	}, func() (name string, value any) {
+		return "Some Value With Spaces and UPPER", "some-other-value"
 	})
 	require.NoError(t, err)
 	require.JSONEq(t, expected, got)
