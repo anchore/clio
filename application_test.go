@@ -374,9 +374,17 @@ func Test_RunExitError(t *testing.T) {
 
 	cmd := exec.Command(os.Args[0], "-test.run=Test_RunExitError")
 	cmd.Env = append(os.Environ(), "CLIO_RUN_EXIT_ERROR=YES")
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
 	err := cmd.Run()
 	var e *exec.ExitError
 	if errors.As(err, &e) && !e.Success() {
+		// ensure that errors are reported to stderr, not stdout
+		assert.Contains(t, stderr.String(), "an error occurred")
+		assert.NotContains(t, stdout.String(), "an error occurred")
 		return
 	}
 	t.Fatalf("process ran with err %v, want exit status 1", err)
