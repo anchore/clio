@@ -46,7 +46,7 @@ func VersionCommand(id Identification, additions ...versionAddition) *cobra.Comm
 
 			value, err := versionInfo(info, format, additions...)
 			if err == nil {
-				fmt.Print(value)
+				cmd.Print(value)
 			}
 			return err
 		},
