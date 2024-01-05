@@ -6,7 +6,6 @@ require (
 	github.com/anchore/fangs v0.0.0-20230807173929-13c94c86f47e
 	github.com/anchore/go-logger v0.0.0-20230725134548-c21dafa1ec5a
 	github.com/gookit/color v1.5.4
-	github.com/hashicorp/go-multierror v1.1.1
 	github.com/iancoleman/strcase v0.3.0
 	github.com/pborman/indent v1.2.1
 	github.com/pkg/profile v1.7.0
@@ -26,7 +25,6 @@ require (
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/google/pprof v0.0.0-20211214055906-6f57359322fd // indirect
 	github.com/google/uuid v1.3.0 // indirect
-	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
