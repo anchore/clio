@@ -330,7 +330,6 @@ func (a *application) setupCommand(cmd *cobra.Command, flags *pflag.FlagSet, fn 
 			}(cmd, args)
 		}
 		if original != nil {
-
 			return original(cmd, args)
 		}
 		return nil
