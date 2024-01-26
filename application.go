@@ -35,9 +35,8 @@ type Application interface {
 
 type application struct {
 	root        *cobra.Command
-	setupConfig SetupConfig       `yaml:"-" mapstructure:"-"`
-	state       State             `yaml:"-" mapstructure:"-"`
-	testing     func(cfgs ...any) `yaml:"-" mapstructure:"-"`
+	setupConfig SetupConfig `yaml:"-" mapstructure:"-"`
+	state       State       `yaml:"-" mapstructure:"-"`
 }
 
 var _ interface {
@@ -311,23 +310,12 @@ func cp[T any](value *T) *T {
 	return &t
 }
 
-func (a *application) WithTesting(assertion func(cfgs ...any)) Application {
-	a.testing = assertion
-	return a
-}
-
 func (a *application) setupCommand(cmd *cobra.Command, flags *pflag.FlagSet, fn *func(cmd *cobra.Command, args []string) error, cfgs ...any) *cobra.Command {
 	original := *fn
 	*fn = func(cmd *cobra.Command, args []string) error {
 		err := a.Setup(cfgs...)(cmd, args)
 		if err != nil {
 			return err
-		}
-		if a.testing != nil {
-			return func(cmd *cobra.Command, args []string) error {
-				a.testing(cfgs...)
-				return nil
-			}(cmd, args)
 		}
 		if original != nil {
 			return original(cmd, args)
