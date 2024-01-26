@@ -9,10 +9,14 @@ import (
 	"testing"
 )
 
-// TODO: is this needed given WrapForTesting? We need to think about
-// how clio is handling global state.
-// in particular, the testing pattern can cause initializers to be called more than once.
+// NewForTesting takes a testing.T, a clio setup config, and a slice of assertions, and returns
+// a clio application that will, instead of setting up commands with their normal RunE, set up commands
+// such that the assertions are called with the testing.T after config state is set up by reading flags,
+// env vars, and config files. Useful for testing that expected configuration options are wired up.
+// Note that initializers will be cleared from the clio setup config, since the initialization may happen
+// more than once and affect global state. For necessary global state, a workaround is to set it in a TestingMain.
 func NewForTesting(t *testing.T, cfg *clio.SetupConfig, assertions ...AssertionFunc) clio.Application {
+	cfg.Initializers = nil
 	a := clio.New(*cfg)
 
 	var asserter assertionClosure = func(cmd *cobra.Command, args []string, cfgs ...any) {
@@ -28,27 +32,13 @@ func NewForTesting(t *testing.T, cfg *clio.SetupConfig, assertions ...AssertionF
 	}
 }
 
-func WrapForTesting(t *testing.T, a clio.Application, assertions ...AssertionFunc) clio.Application {
-	var asserter assertionClosure = func(cmd *cobra.Command, args []string, cfgs ...any) {
-		for _, assertion := range assertions {
-			assertion(t, cmd, args, cfgs...)
-		}
-	}
-
-	return &testApplication{
-		a,
-		asserter,
-		sync.Once{},
-	}
-}
-
 type AssertionFunc func(t *testing.T, cmd *cobra.Command, args []string, cfgs ...any)
 
-func OptionsEquals(opts any) AssertionFunc {
+func OptionsEquals(wantOpts any) AssertionFunc {
 	return func(t *testing.T, cmd *cobra.Command, args []string, cfgs ...any) {
 		assert.Equal(t, len(cfgs), 1)
-		if d := cmp.Diff(opts, cfgs[0]); d != "" {
-			t.Errorf("mismatched options (+got -want):\n%s", d)
+		if d := cmp.Diff(wantOpts, cfgs[0]); d != "" {
+			t.Errorf("mismatched options (-want +got):\n%s", d)
 		}
 	}
 }
@@ -79,7 +69,6 @@ func (a *testApplication) SetupRootCommand(cmd *cobra.Command, cfgs ...any) *cob
 
 /*
 // TODO: WISHLIST:
-1. Pass in an io.Reader that's wired up to the config file, _or_ (almost as good) pass in a test fixture path
-2. Set env vars by passing map[string]string
-3. Helper to pass in a fully populated options struct and assert that it's correct
+1. Helper to wire up a test fixture as the only config file that will be found
+2. Set env vars by passing map[string]string (currently possible by caller in test; a helper here would be nice.)
 */
