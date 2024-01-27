@@ -1,12 +1,13 @@
 package testutils
 
 import (
-	"github.com/anchore/clio"
+	"testing"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
-	"sync"
-	"testing"
+
+	"github.com/anchore/clio"
 )
 
 // NewForTesting takes a testing.T, a clio setup config, and a slice of assertions, and returns
@@ -28,7 +29,6 @@ func NewForTesting(t *testing.T, cfg *clio.SetupConfig, assertions ...AssertionF
 	return &testApplication{
 		a,
 		asserter,
-		sync.Once{},
 	}
 }
 
@@ -48,7 +48,6 @@ type assertionClosure func(cmd *cobra.Command, args []string, cfgs ...any)
 type testApplication struct {
 	clio.Application
 	assertion assertionClosure
-	initOnce  sync.Once
 }
 
 func (a *testApplication) SetupCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command {
