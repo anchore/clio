@@ -10,13 +10,13 @@ import (
 	"github.com/anchore/clio"
 )
 
-// NewForTesting takes a testing.T, a clio setup config, and a slice of assertions, and returns
+// NewApplication takes a testing.T, a clio setup config, and a slice of assertions, and returns
 // a clio application that will, instead of setting up commands with their normal RunE, set up commands
 // such that the assertions are called with the testing.T after config state is set up by reading flags,
 // env vars, and config files. Useful for testing that expected configuration options are wired up.
 // Note that initializers will be cleared from the clio setup config, since the initialization may happen
 // more than once and affect global state. For necessary global state, a workaround is to set it in a TestingMain.
-func NewForTesting(t *testing.T, cfg *clio.SetupConfig, assertions ...AssertionFunc) clio.Application {
+func NewApplication(t *testing.T, cfg *clio.SetupConfig, assertions ...AssertionFunc) clio.Application {
 	cfg.Initializers = nil
 	a := clio.New(*cfg)
 
