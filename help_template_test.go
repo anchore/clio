@@ -9,16 +9,31 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 
+	"github.com/anchore/fangs"
 	"github.com/anchore/go-logger/adapter/redact"
 )
 
-func Test_showConfigInRootHelp(t *testing.T) {
-	cfg := NewSetupConfig(Identification{
-		Name:    "app",
-		Version: "1.2.3",
-	}).
-		WithConfigInRootHelp().
-		WithGlobalConfigFlag()
+// regression test for https://github.com/anchore/clio/issues/40
+func Test_conflictingConfigErrors(t *testing.T) {
+	fangsConfig := fangs.NewConfig("test")
+	fangsConfig.File = "testdata/conflicting_config.yaml"
+	application := &application{
+		root: &cobra.Command{},
+		state: State{
+			Config: Config{
+				FromCommands: []any{&struct {
+					UnderTest string `mapstructure:"test" yaml:"test"`
+				}{UnderTest: "test"}},
+			},
+		},
+		setupConfig: SetupConfig{
+			FangsConfig: fangsConfig,
+		},
+	}
+	err := showConfigInRootHelp(application)
+	require.Error(t, err)
+	msg := err.Error()
+	require.Contains(t, msg, "error loading config object")
 }
 
 func Test_redactingHelpText(t *testing.T) {
