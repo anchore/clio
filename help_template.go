@@ -71,6 +71,7 @@ func showConfigInRootHelp(a *application) error {
 				if err := fangs.Load(a.setupConfig.FangsConfig, cmd, cfg); err != nil {
 					// log default prints to stderr
 					log.Printf("error loading config object; do you have a config that conflicts with a newer version? %v", err)
+					return
 				}
 			}
 			summary := a.summarizeConfig(cmd)
