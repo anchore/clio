@@ -12,6 +12,15 @@ import (
 	"github.com/anchore/go-logger/adapter/redact"
 )
 
+func Test_showConfigInRootHelp(t *testing.T) {
+	cfg := NewSetupConfig(Identification{
+		Name:    "app",
+		Version: "1.2.3",
+	}).
+		WithConfigInRootHelp().
+		WithGlobalConfigFlag()
+}
+
 func Test_redactingHelpText(t *testing.T) {
 	cfg := NewSetupConfig(Identification{
 		Name:    "app",
@@ -27,7 +36,7 @@ func Test_redactingHelpText(t *testing.T) {
 
 	app := New(*cfg)
 
-	root := app.SetupRootCommand(&cobra.Command{}, r)
+	root, _ := app.SetupRootCommand(&cobra.Command{}, r)
 
 	r.store = app.(*application).state.RedactStore
 

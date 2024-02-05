@@ -58,12 +58,12 @@ func (a *testApplication) SetupCommand(cmd *cobra.Command, cfgs ...any) *cobra.C
 	return a.Application.SetupCommand(cmd, cfgs...)
 }
 
-func (a *testApplication) SetupRootCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command {
+func (a *testApplication) SetupRootCommand(cmd *cobra.Command, cfgs ...any) (*cobra.Command, error) {
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		a.assertion(cmd, args, cfgs...)
 		return nil
 	}
-	return a.Application.SetupRootCommand(cmd, cfgs...)
+	return a.Application.SetupRootCommand(cmd, cfgs...), nil
 }
 
 /*

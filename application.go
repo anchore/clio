@@ -23,13 +23,13 @@ type Initializer func(*State) error
 
 type PostRun func(*State, error)
 
-type postConstruct func(*application)
+type postConstruct func(*application) error
 
 type Application interface {
 	ID() Identification
 	AddFlags(flags *pflag.FlagSet, cfgs ...any)
 	SetupCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command
-	SetupRootCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command
+	SetupRootCommand(cmd *cobra.Command, cfgs ...any) (*cobra.Command, error)
 	Run()
 }
 
@@ -276,12 +276,12 @@ func (a *application) Run() {
 	}
 }
 
-func (a *application) SetupRootCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command {
+func (a *application) SetupRootCommand(cmd *cobra.Command, cfgs ...any) (*cobra.Command, error) {
 	a.root = cmd
 	return a.setupRootCommand(cmd, cfgs...)
 }
 
-func (a *application) setupRootCommand(cmd *cobra.Command, cfgs ...any) *cobra.Command {
+func (a *application) setupRootCommand(cmd *cobra.Command, cfgs ...any) (*cobra.Command, error) {
 	if !strings.HasPrefix(cmd.Use, a.setupConfig.ID.Name) {
 		cmd.Use = a.setupConfig.ID.Name
 	}
@@ -295,10 +295,13 @@ func (a *application) setupRootCommand(cmd *cobra.Command, cfgs ...any) *cobra.C
 	a.state.Config.Dev = cp(a.setupConfig.DefaultDevelopmentConfig)
 
 	for _, pc := range a.setupConfig.postConstructs {
-		pc(a)
+		err := pc(a)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return a.setupCommand(cmd, cmd.Flags(), &cmd.PreRunE, cfgs...)
+	return a.setupCommand(cmd, cmd.Flags(), &cmd.PreRunE, cfgs...), nil
 }
 
 func cp[T any](value *T) *T {

@@ -2,7 +2,7 @@ package clio
 
 import (
 	"fmt"
-	"reflect"
+	"log"
 
 	"github.com/spf13/cobra"
 
@@ -11,7 +11,7 @@ import (
 
 var _ postConstruct = updateHelpUsageTemplate
 
-func updateHelpUsageTemplate(a *application) {
+func updateHelpUsageTemplate(a *application) error {
 	cmd := a.root
 
 	var helpUsageTemplate = fmt.Sprintf(`{{if (or .Long .Short)}}{{.Long}}{{if not .Long}}{{.Short}}{{end}}
@@ -42,27 +42,35 @@ Use "{{if .CommandPath}}{{.CommandPath}} {{end}}[command] --help" for more infor
 
 	cmd.SetUsageTemplate(helpUsageTemplate)
 	cmd.SetHelpTemplate(helpUsageTemplate)
+	return nil
 }
 
 var _ postConstruct = showConfigInRootHelp
 
-func showConfigInRootHelp(a *application) {
+func showConfigInRootHelp(a *application) error {
 	cmd := a.root
 
 	helpFn := cmd.HelpFunc()
+	// check if the config can load before setting the help function
+	cfgs := append([]any{&a.state.Config, a}, a.state.Config.FromCommands...)
+	for _, cfg := range cfgs {
+		if err := fangs.Load(a.setupConfig.FangsConfig, cmd, cfg); err != nil {
+			return fmt.Errorf("error loading config object; do you have a config that conflicts with a newer version? %w", err)
+		}
+	}
 	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
 		// root.Example is set _after all added commands_ because it collects all the
 		// options structs in order to output an accurate "config file" summary
 		// note: since all commands tend to share help functions it's important to only patch the example
 		// when there is no parent command (i.e. the root command).
 		if cmd == a.root {
-			cfgs := append([]any{&a.state.Config, a}, a.state.Config.FromCommands...)
-			for _, cfg := range cfgs {
+			helpCfgs := append([]any{&a.state.Config, a}, a.state.Config.FromCommands...)
+			for _, cfg := range helpCfgs {
 				// load each config individually, as there may be conflicting names / types that will cause
 				// viper to fail to read them all and panic
 				if err := fangs.Load(a.setupConfig.FangsConfig, cmd, cfg); err != nil {
-					t := reflect.TypeOf(cfg)
-					panic(fmt.Sprintf("error loading config object: `%s:%s`: %s", t.PkgPath(), t.Name(), err.Error()))
+					// log default prints to stderr
+					log.Printf("error loading config object; do you have a config that conflicts with a newer version? %v", err)
 				}
 			}
 			summary := a.summarizeConfig(cmd)
@@ -73,4 +81,5 @@ func showConfigInRootHelp(a *application) {
 		}
 		helpFn(cmd, args)
 	})
+	return nil
 }

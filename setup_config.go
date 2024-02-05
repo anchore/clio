@@ -110,15 +110,17 @@ func (c *SetupConfig) withPostConstructs(postConstructs ...postConstruct) *Setup
 
 // WithGlobalConfigFlag adds the global `-c` / `--config` flags to the root command
 func (c *SetupConfig) WithGlobalConfigFlag() *SetupConfig {
-	return c.withPostConstructs(func(a *application) {
+	return c.withPostConstructs(func(a *application) error {
 		a.AddFlags(a.root.PersistentFlags(), &a.setupConfig.FangsConfig)
+		return nil
 	})
 }
 
 // WithGlobalLoggingFlags adds the global logging flags to the root command.
 func (c *SetupConfig) WithGlobalLoggingFlags() *SetupConfig {
-	return c.withPostConstructs(func(a *application) {
+	return c.withPostConstructs(func(a *application) error {
 		a.AddFlags(a.root.PersistentFlags(), &a.state.Config)
+		return nil
 	})
 }
 

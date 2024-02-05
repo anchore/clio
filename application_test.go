@@ -127,7 +127,7 @@ func Test_Application_Setup_WiresFangs(t *testing.T) {
 
 	app := New(*cfg)
 
-	cmd := app.SetupRootCommand(&cobra.Command{
+	cmd, _ := app.SetupRootCommand(&cobra.Command{
 		DisableFlagParsing: true,
 		Args:               cobra.ArbitraryArgs,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -163,7 +163,7 @@ func Test_Application_Setup_PassLoggerConstructor(t *testing.T) {
 
 	app := New(*cfg)
 
-	cmd := app.SetupRootCommand(&cobra.Command{
+	cmd, _ := app.SetupRootCommand(&cobra.Command{
 		DisableFlagParsing: true,
 		Args:               cobra.ArbitraryArgs,
 		Run:                func(cmd *cobra.Command, args []string) {},
@@ -192,7 +192,7 @@ func Test_Application_Setup_ConfigureLogger(t *testing.T) {
 
 	app := New(*cfg)
 
-	cmd := app.SetupRootCommand(&cobra.Command{
+	cmd, _ := app.SetupRootCommand(&cobra.Command{
 		DisableFlagParsing: true,
 		Args:               cobra.ArbitraryArgs,
 		Run:                func(cmd *cobra.Command, args []string) {},
@@ -280,7 +280,7 @@ func Test_SetupCommand(t *testing.T) {
 
 	app := New(*cfg)
 
-	root := app.SetupRootCommand(&cobra.Command{})
+	root, _ := app.SetupRootCommand(&cobra.Command{})
 
 	app.AddFlags(root.PersistentFlags(), p)
 
