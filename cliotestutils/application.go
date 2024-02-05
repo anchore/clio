@@ -63,7 +63,7 @@ func (a *testApplication) SetupRootCommand(cmd *cobra.Command, cfgs ...any) (*co
 		a.assertion(cmd, args, cfgs...)
 		return nil
 	}
-	return a.Application.SetupRootCommand(cmd, cfgs...), nil
+	return a.Application.SetupRootCommand(cmd, cfgs...)
 }
 
 /*
