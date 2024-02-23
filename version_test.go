@@ -16,22 +16,12 @@ func Test_versionOutputToStdout(t *testing.T) {
 		Version: "version",
 	})
 
-	stdout := &bytes.Buffer{}
-	restoreStdout := capture(&os.Stdout, stdout, 1024)
-	defer restoreStdout()
+	stdout, stderr := captureStd(func() {
+		_ = c.RunE(c, nil)
+	})
 
-	stderr := &bytes.Buffer{}
-	restoreStderr := capture(&os.Stderr, stderr, 1024)
-	defer restoreStderr()
-
-	_ = c.RunE(c, nil)
-
-	// close and flush the buffers, wait until complete
-	restoreStdout()
-	restoreStderr()
-
-	require.NotEmpty(t, stdout.String())
-	require.Empty(t, stderr.String())
+	require.NotEmpty(t, stdout)
+	require.Empty(t, stderr)
 }
 
 func Test_versionInfoText(t *testing.T) {
@@ -96,7 +86,25 @@ func Test_versionInfoJSON(t *testing.T) {
 	require.JSONEq(t, expected, got)
 }
 
-func capture(target **os.File, writer io.Writer, bufSize int) (close func()) {
+func captureStd(fn func()) (stdout, stderr string) {
+	out := &bytes.Buffer{}
+	restoreStdout := capture(&os.Stdout, out)
+	defer restoreStdout()
+
+	err := &bytes.Buffer{}
+	restoreStderr := capture(&os.Stderr, err)
+	defer restoreStderr()
+
+	fn()
+
+	// close and flush the buffers, wait until complete
+	restoreStdout()
+	restoreStderr()
+
+	return out.String(), err.String()
+}
+
+func capture(target **os.File, writer io.Writer) (close func()) {
 	original := *target
 
 	r, w, _ := os.Pipe()
@@ -106,7 +114,7 @@ func capture(target **os.File, writer io.Writer, bufSize int) (close func()) {
 
 	go func() {
 		defer wg.Done()
-		buf := make([]byte, bufSize)
+		buf := make([]byte, 1024)
 		for {
 			n, err := r.Read(buf)
 			if n > 0 {
