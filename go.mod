@@ -3,7 +3,7 @@ module github.com/anchore/clio
 go 1.18
 
 require (
-	github.com/anchore/fangs v0.0.0-20240215005329-6b6c25b340ce
+	github.com/anchore/fangs v0.0.0-20240301230121-42a116a277cb
 	github.com/anchore/go-logger v0.0.0-20230725134548-c21dafa1ec5a
 	github.com/google/go-cmp v0.6.0
 	github.com/gookit/color v1.5.4
@@ -14,9 +14,9 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	github.com/wagoodman/go-partybus v0.0.0-20230516145632-8ccac152c651
-	golang.org/x/term v0.17.0
+	golang.org/x/term v0.18.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -43,13 +43,13 @@ require (
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
 	github.com/spf13/viper v1.18.2 // indirect
-	github.com/stretchr/objx v0.5.0 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/xo/terminfo v0.0.0-20210125001918-ca9a967f8778 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9 // indirect
-	golang.org/x/sys v0.17.0 // indirect
+	golang.org/x/sys v0.18.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 )
