@@ -38,7 +38,7 @@ func Test_ConfigCommandDefaults(t *testing.T) {
 	t.Setenv("MY_APP_NAME", "env-name") // this should not be loaded
 
 	stdout, _ := captureStd(func() {
-		configCmd := ConfigCommand(app, DefaultConfigCommandConfig())
+		configCmd := ConfigCommand(app, nil)
 		err := configCmd.RunE(configCmd, nil)
 		require.NoError(t, err)
 	})
@@ -97,7 +97,7 @@ func Test_ConfigCommandLoad(t *testing.T) {
 	t.Setenv("MY_APP_NAME", "env-name") // this should be loaded
 
 	stdout, _ := captureStd(func() {
-		configCmd := ConfigCommand(app, DefaultConfigCommandConfig())
+		configCmd := ConfigCommand(app, nil)
 		err := configCmd.Flags().Set("load", "true")
 		require.NoError(t, err)
 		err = configCmd.RunE(configCmd, nil)
@@ -138,6 +138,10 @@ func Test_SummarizeLocationsCommand(t *testing.T) {
 	// should NOT have locations subcommand
 	configCmd := ConfigCommand(app, DefaultConfigCommandConfig().WithIncludeLocationsSubcommand(false))
 	require.Len(t, configCmd.Commands(), 0)
+
+	// should have locations subcommand
+	configCmd = ConfigCommand(app, nil)
+	require.Len(t, configCmd.Commands(), 1)
 
 	// should have locations subcommand
 	configCmd = ConfigCommand(app, DefaultConfigCommandConfig())
