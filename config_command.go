@@ -14,7 +14,11 @@ import (
 	"github.com/anchore/go-logger/adapter/redact"
 )
 
-func ConfigCommand(app Application, opts ConfigCommandConfig) *cobra.Command {
+func ConfigCommand(app Application, opts *ConfigCommandConfig) *cobra.Command {
+	if opts == nil {
+		opts = DefaultConfigCommandConfig()
+	}
+
 	id := app.ID()
 	internalApp := extractInternalApp(app)
 	if internalApp == nil {
@@ -66,8 +70,8 @@ type ConfigCommandConfig struct {
 	ReplaceHomeDirWithTilde    bool
 }
 
-func DefaultConfigCommandConfig() ConfigCommandConfig {
-	return ConfigCommandConfig{
+func DefaultConfigCommandConfig() *ConfigCommandConfig {
+	return &ConfigCommandConfig{
 		IncludeLocationsSubcommand: true,
 		ReplaceHomeDirWithTilde:    true,
 	}
@@ -75,7 +79,7 @@ func DefaultConfigCommandConfig() ConfigCommandConfig {
 
 // WithIncludeLocationsSubcommand true will include a `config locations` subcommand which lists each location that will
 // be used to locate configuration files based on the configured environment
-func (c ConfigCommandConfig) WithIncludeLocationsSubcommand(include bool) ConfigCommandConfig {
+func (c *ConfigCommandConfig) WithIncludeLocationsSubcommand(include bool) *ConfigCommandConfig {
 	c.IncludeLocationsSubcommand = include
 	return c
 }
@@ -83,12 +87,12 @@ func (c ConfigCommandConfig) WithIncludeLocationsSubcommand(include bool) Config
 // WithReplaceHomeDirWithTilde adds a value filter function which replaces matching home directory values in strings
 // starting with the user's home directory to make configurations more portable. Note: this does not apply to the
 // locations subcommand, only the config command itself
-func (c ConfigCommandConfig) WithReplaceHomeDirWithTilde(replace bool) ConfigCommandConfig {
+func (c *ConfigCommandConfig) WithReplaceHomeDirWithTilde(replace bool) *ConfigCommandConfig {
 	c.ReplaceHomeDirWithTilde = replace
 	return c
 }
 
-func (c ConfigCommandConfig) makeFilters(redactStore redact.Store) (filter valueFilterFunc) {
+func (c *ConfigCommandConfig) makeFilters(redactStore redact.Store) (filter valueFilterFunc) {
 	if redactStore != nil {
 		filter = chainFilterFuncs(redactStore.RedactString, filter)
 	}
