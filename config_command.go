@@ -11,14 +11,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/anchore/fangs"
+	"github.com/anchore/go-logger/adapter/redact"
 )
 
-func ConfigCommand(app Application, options ...configCommandOption) *cobra.Command {
-	opts := configCommandOptions{}
-	for _, option := range options {
-		option(&opts)
-	}
-
+func ConfigCommand(app Application, opts ConfigCommandConfig) *cobra.Command {
 	id := app.ID()
 	internalApp := extractInternalApp(app)
 	if internalApp == nil {
@@ -35,14 +31,10 @@ func ConfigCommand(app Application, options ...configCommandOption) *cobra.Comma
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			allConfigs := allCommandConfigs(internalApp)
 			var err error
-			if opts.loadConfig {
+			if opts.LoadConfig {
 				err = loadAllConfigs(cmd, internalApp.setupConfig.FangsConfig, allConfigs)
 			}
-			filter := opts.valueFilterFunc
-			if internalApp.state.RedactStore != nil {
-				filter = chainFilterFuncs(internalApp.state.RedactStore.RedactString, filter)
-			}
-			summary := summarizeConfig(cmd, internalApp.setupConfig.FangsConfig, filter, allConfigs)
+			summary := summarizeConfig(cmd, internalApp.setupConfig.FangsConfig, opts.makeFilters(internalApp.state.RedactStore), allConfigs)
 			_, writeErr := os.Stdout.WriteString(summary)
 			if writeErr != nil {
 				writeErr = fmt.Errorf("an error occurred writing configuration summary: %w", writeErr)
@@ -56,9 +48,9 @@ func ConfigCommand(app Application, options ...configCommandOption) *cobra.Comma
 		},
 	}
 
-	cmd.Flags().BoolVarP(&opts.loadConfig, "load", "", opts.loadConfig, fmt.Sprintf("load and validate the %s configuration", id.Name))
+	cmd.Flags().BoolVarP(&opts.LoadConfig, "load", "", opts.LoadConfig, fmt.Sprintf("load and validate the %s configuration", id.Name))
 
-	if opts.includeLocationsSubcommand {
+	if opts.IncludeLocationsSubcommand {
 		// sub-command to print expanded configuration file search locations
 		cmd.AddCommand(summarizeLocationsCommand(internalApp))
 	}
@@ -66,35 +58,53 @@ func ConfigCommand(app Application, options ...configCommandOption) *cobra.Comma
 	return cmd
 }
 
-type configCommandOption func(*configCommandOptions)
-
 type valueFilterFunc func(string) string
 
-type configCommandOptions struct {
-	loadConfig                 bool
-	includeLocationsSubcommand bool
-	valueFilterFunc            valueFilterFunc
+type ConfigCommandConfig struct {
+	LoadConfig                 bool
+	IncludeLocationsSubcommand bool
+	ReplaceHomeDirWithTilde    bool
 }
 
-// ReplaceHomeDirWithTilde adds a value filter function which replaces matching home directory values in strings
-// starting with the user's home directory to make configurations more portable
-func ReplaceHomeDirWithTilde(opts *configCommandOptions) {
-	userHome, _ := homedir.Dir()
-	if userHome != "" {
-		opts.valueFilterFunc = chainFilterFuncs(opts.valueFilterFunc, func(s string) string {
-			// make any defaults based on the user's home directory more portable
-			if strings.HasPrefix(s, userHome) {
-				s = strings.ReplaceAll(s, userHome, "~")
-			}
-			return s
-		})
+func DefaultConfigCommandConfig() ConfigCommandConfig {
+	return ConfigCommandConfig{
+		IncludeLocationsSubcommand: true,
+		ReplaceHomeDirWithTilde:    true,
 	}
 }
 
-// IncludeLocationsSubcommand will include a `config locations` subcommand which lists each location that will be used
-// to locate configuration files based on the configured environment
-func IncludeLocationsSubcommand(opts *configCommandOptions) {
-	opts.includeLocationsSubcommand = true
+// WithIncludeLocationsSubcommand true will include a `config locations` subcommand which lists each location that will
+// be used to locate configuration files based on the configured environment
+func (c ConfigCommandConfig) WithIncludeLocationsSubcommand(include bool) ConfigCommandConfig {
+	c.IncludeLocationsSubcommand = include
+	return c
+}
+
+// WithReplaceHomeDirWithTilde adds a value filter function which replaces matching home directory values in strings
+// starting with the user's home directory to make configurations more portable. Note: this does not apply to the
+// locations subcommand, only the config command itself
+func (c ConfigCommandConfig) WithReplaceHomeDirWithTilde(replace bool) ConfigCommandConfig {
+	c.ReplaceHomeDirWithTilde = replace
+	return c
+}
+
+func (c ConfigCommandConfig) makeFilters(redactStore redact.Store) (filter valueFilterFunc) {
+	if redactStore != nil {
+		filter = chainFilterFuncs(redactStore.RedactString, filter)
+	}
+	if c.ReplaceHomeDirWithTilde {
+		userHome, _ := homedir.Dir()
+		if userHome != "" {
+			filter = chainFilterFuncs(filter, func(s string) string {
+				// make any defaults based on the user's home directory more portable
+				if strings.HasPrefix(s, userHome) {
+					s = strings.ReplaceAll(s, userHome, "~")
+				}
+				return s
+			})
+		}
+	}
+	return filter
 }
 
 func chainFilterFuncs(f1, f2 valueFilterFunc) valueFilterFunc {
