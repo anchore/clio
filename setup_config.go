@@ -1,6 +1,10 @@
 package clio
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+
 	"github.com/wagoodman/go-partybus"
 
 	"github.com/anchore/fangs"
@@ -72,6 +76,31 @@ func (c *SetupConfig) WithLoggerConstructor(constructor LoggerConstructor) *Setu
 
 func (c *SetupConfig) WithConfigFinders(finders ...fangs.Finder) *SetupConfig {
 	c.FangsConfig.Finders = append(c.FangsConfig.Finders, finders...)
+	return c
+}
+
+func (c *SetupConfig) WithConfigProfile() *SetupConfig {
+	c.FangsConfig = c.FangsConfig.WithProfileEnvVar()
+	c.FangsConfig.Finders = append([]fangs.Finder{func(cfg fangs.Config) ([]string, error) {
+		if cfg.Profile == "" {
+			return nil, nil
+		}
+		file := filepath.Join("."+cfg.AppName, cfg.Profile+".yaml")
+
+		// if path does not exist, return error
+		if _, err := os.Stat(file); os.IsNotExist(err) {
+			return nil, fmt.Errorf("config file not found: %s", file)
+		}
+
+		return []string{file}, nil
+	}}, c.FangsConfig.Finders...)
+
+	c.Initializers = append(c.Initializers, func(state *State) error {
+		if c.FangsConfig.Profile != "" {
+			state.Logger.Infof("Using config profile: %q", c.FangsConfig.Profile)
+		}
+		return nil
+	})
 	return c
 }
 

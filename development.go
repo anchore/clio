@@ -8,15 +8,15 @@ import (
 )
 
 const (
-	ProfileCPU        Profile = "cpu"
-	ProfileMem        Profile = "mem"
-	ProfilingDisabled Profile = "none"
+	ProfileCPU        ProfileResource = "cpu"
+	ProfileMem        ProfileResource = "mem"
+	ProfilingDisabled ProfileResource = "none"
 )
 
-type Profile string
+type ProfileResource string
 
 type DevelopmentConfig struct {
-	Profile Profile `yaml:"profile" json:"profile" mapstructure:"profile"`
+	Profile ProfileResource `yaml:"profile" json:"profile" mapstructure:"profile"`
 }
 
 func (d *DevelopmentConfig) DescribeFields(set fangs.FieldDescriptionSet) {
@@ -32,7 +32,7 @@ func (d *DevelopmentConfig) PostLoad() error {
 	return nil
 }
 
-func parseProfile(profile string) Profile {
+func parseProfile(profile string) ProfileResource {
 	switch strings.ToLower(profile) {
 	case "cpu":
 		return ProfileCPU

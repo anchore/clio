@@ -11,7 +11,7 @@ func Test_parseProfile(t *testing.T) {
 	tests := []struct {
 		name    string
 		profile string
-		want    Profile
+		want    ProfileResource
 	}{
 		{
 			name:    "empty",
