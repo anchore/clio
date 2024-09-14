@@ -42,7 +42,7 @@ func NewSetupConfig(id Identification) *SetupConfig {
 }
 
 func (c *SetupConfig) WithUI(uis ...UI) *SetupConfig {
-	c.UIConstructor = func(cfg Config) ([]UI, error) {
+	c.UIConstructor = func(_ Config) ([]UI, error) {
 		return uis, nil
 	}
 	return c
@@ -59,7 +59,7 @@ func (c *SetupConfig) WithBusConstructor(constructor BusConstructor) *SetupConfi
 }
 
 func (c *SetupConfig) WithNoBus() *SetupConfig {
-	c.BusConstructor = func(config Config) *partybus.Bus {
+	c.BusConstructor = func(_ Config) *partybus.Bus {
 		return nil
 	}
 	return c

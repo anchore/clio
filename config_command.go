@@ -168,7 +168,7 @@ func summarizeLocationsCommand(internalApp *application) *cobra.Command {
 		Use:   "locations",
 		Short: fmt.Sprintf("shows all locations and the order in which %s will look for a configuration file", internalApp.ID().Name),
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			suffix := ".yaml"
 			if all {
 				suffix = ""
