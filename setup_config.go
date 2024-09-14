@@ -42,8 +42,8 @@ func NewSetupConfig(id Identification) *SetupConfig {
 }
 
 func (c *SetupConfig) WithUI(uis ...UI) *SetupConfig {
-	c.UIConstructor = func(_ Config) ([]UI, error) {
-		return uis, nil
+	c.UIConstructor = func(_ Config) (*UICollection, error) {
+		return NewUICollection(uis...), nil
 	}
 	return c
 }

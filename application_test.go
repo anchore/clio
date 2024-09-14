@@ -176,8 +176,8 @@ func Test_Application_Setup_PassLoggerConstructor(t *testing.T) {
 	_, ok := state.Logger.(*mockLogger)
 	assert.True(t, ok, "expected logger to be a mock")
 
-	require.NotEmpty(t, state.UIs)
-	_, ok = state.UIs[0].(*mockUI)
+	require.NotEmpty(t, state.UI)
+	_, ok = state.UI.uis[0].(*mockUI)
 	assert.True(t, ok, "expected UI to be a mock")
 
 	// TODO: missing bus constructor from this test

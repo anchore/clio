@@ -167,7 +167,7 @@ func (a *application) execute(ctx context.Context, errs <-chan error) error {
 		a.state.Logger.Nested("component", "eventloop"),
 		a.state.Subscription,
 		errs,
-		a.state.UIs...,
+		a.state.UI,
 	)
 }
 
