@@ -2,6 +2,7 @@ package clio
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -64,8 +65,8 @@ func (a *application) State() *State {
 
 // TODO: configs of any doesn't lean into the type system enough. Consider a more specific type.
 
-func (a *application) Setup(cfgs ...any) func(cmd *cobra.Command, args []string) error {
-	return func(cmd *cobra.Command, args []string) error {
+func (a *application) Setup(cfgs ...any) func(_ *cobra.Command, _ []string) error {
+	return func(cmd *cobra.Command, _ []string) error {
 		// allow for the all configuration to be loaded first, then allow for the application
 		// PostLoad() to run, allowing the setup of resources (logger, bus, ui, etc.) and run user initializers
 		// as early as possible before the final configuration is logged. This allows for a couple things:
@@ -231,7 +232,7 @@ func (a *application) SetupCommand(cmd *cobra.Command, cfgs ...any) *cobra.Comma
 
 func (a *application) Run() {
 	if a.root == nil {
-		panic(fmt.Errorf(setupRootCommandNotCalledError))
+		panic(errors.New(setupRootCommandNotCalledError))
 	}
 
 	// drive application control from a single context which can be cancelled (notifying the event loop to stop)

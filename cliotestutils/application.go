@@ -35,7 +35,7 @@ func NewApplication(t *testing.T, cfg *clio.SetupConfig, assertions ...Assertion
 type AssertionFunc func(t *testing.T, cmd *cobra.Command, args []string, cfgs ...any)
 
 func OptionsEquals(wantOpts any) AssertionFunc {
-	return func(t *testing.T, cmd *cobra.Command, args []string, cfgs ...any) {
+	return func(t *testing.T, _ *cobra.Command, _ []string, cfgs ...any) {
 		assert.Equal(t, len(cfgs), 1)
 		if d := cmp.Diff(wantOpts, cfgs[0]); d != "" {
 			t.Errorf("mismatched options (-want +got):\n%s", d)
