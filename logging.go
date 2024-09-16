@@ -181,7 +181,7 @@ func (l *LoggingConfig) AllowUI(stdin fs.File) bool {
 	isStderrATty := l.terminalDetector.StderrIsTerminal()
 	notATerminal := !isStderrATty && !isStdoutATty
 	if notATerminal || !isStderrATty {
-		// most UIs should be shown on stderr, not out
+		// most UI should be shown on stderr, not out
 		return false
 	}
 
