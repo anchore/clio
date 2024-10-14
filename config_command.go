@@ -146,7 +146,16 @@ func loadAllConfigs(cmd *cobra.Command, fangsCfg fangs.Config, allConfigs []any)
 			for t.Kind() == reflect.Pointer {
 				t = t.Elem()
 			}
-			errs = append(errs, fmt.Errorf("error loading config %s: %w", t.Name(), err))
+			if isProfileError(err) {
+				if hasProfileError(errs) {
+					// only report profile errors once
+					continue
+				}
+				// directly append the profile error, since this will be repeated for each configuration object and is applicable to all
+				errs = append(errs, err)
+			} else {
+				errs = append(errs, fmt.Errorf("error loading config '%s.%s': %w", t.PkgPath(), t.Name(), err))
+			}
 		}
 	}
 	if len(errs) == 0 {
@@ -193,4 +202,23 @@ func summarizeLocations(fangsCfg fangs.Config, onlySuffix string) string {
 		out += f + "\n"
 	}
 	return out
+}
+
+// fangs load may result in each configuration object being attempted to load with a failed profile for different reasons
+func isProfileError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "not found in any configuration files") ||
+		strings.Contains(msg, "profile not found")
+}
+
+func hasProfileError(errs []error) bool {
+	for _, e := range errs {
+		if isProfileError(e) {
+			return true
+		}
+	}
+	return false
 }

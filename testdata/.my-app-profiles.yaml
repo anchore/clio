@@ -1,0 +1,5 @@
+name1: name1
+
+profiles:
+  name1profile:
+    name1: name1-from-profile
