@@ -2,6 +2,8 @@ package clio
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/mitchellh/go-homedir"
@@ -20,7 +22,7 @@ func Test_ConfigCommandDefaults(t *testing.T) {
 		Name: "my-app",
 	})
 
-	cfg.FangsConfig.File = "testdata/.my-app.yaml"
+	cfg.FangsConfig.Files = []string{"testdata/.my-app.yaml"}
 
 	app := New(*cfg)
 
@@ -46,20 +48,20 @@ func Test_ConfigCommandDefaults(t *testing.T) {
 	require.Equal(t, `log:
   # (env: MY_APP_LOG_QUIET)
   quiet: false
-  
+
   # (env: MY_APP_LOG_VERBOSITY)
   verbosity: 0
-  
+
   # (env: MY_APP_LOG_LEVEL)
   level: ''
-  
+
   # (env: MY_APP_LOG_FILE)
   file: ''
-  
+
 dev:
   # (env: MY_APP_DEV_PROFILE)
   profile: ''
-  
+
 # (env: MY_APP_SOME_PATH)
 some-path: '~/some/dir'
 
@@ -81,7 +83,7 @@ func Test_ConfigCommandLoad(t *testing.T) {
 		Name: "my-app",
 	})
 
-	cfg.FangsConfig.File = "testdata/.my-app.yaml"
+	cfg.FangsConfig.Files = []string{"testdata/.my-app.yaml"}
 
 	app := New(*cfg)
 
@@ -107,20 +109,20 @@ func Test_ConfigCommandLoad(t *testing.T) {
 	require.Equal(t, `log:
   # (env: MY_APP_LOG_QUIET)
   quiet: false
-  
+
   # (env: MY_APP_LOG_VERBOSITY)
   verbosity: 0
-  
+
   # explicitly set the logging level (available: [error warn info debug trace]) (env: MY_APP_LOG_LEVEL)
   level: 'info'
-  
+
   # file path to write logs to (env: MY_APP_LOG_FILE)
   file: ''
-  
+
 dev:
   # capture resource profiling data (available: [cpu, mem]) (env: MY_APP_DEV_PROFILE)
   profile: 'none'
-  
+
 # (env: MY_APP_NAME)
 name: 'env-name'
 
@@ -166,4 +168,63 @@ func Test_SummarizeLocationsCommand(t *testing.T) {
 
 	require.Contains(t, stdout, ".my-app.yaml")
 	require.Contains(t, stdout, ".my-app.json")
+}
+
+func Test_ConsolidateProfileErrors(t *testing.T) {
+	tests := []struct {
+		file     string
+		expected string
+	}{
+		{
+			file:     ".my-app.yaml",
+			expected: "not found in any configuration files",
+		},
+		{
+			file:     ".my-app-profiles.yaml",
+			expected: "profile not found",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.expected, func(t *testing.T) {
+			type options1 struct {
+				Name1 string `mapstructure:"name1"`
+			}
+
+			type options2 struct {
+				Name2 string `mapstructure:"name2"`
+			}
+
+			cfg := *NewSetupConfig(Identification{
+				Name: "my-app",
+			})
+
+			cfg.FangsConfig.Files = []string{filepath.Join("testdata", test.file)}
+			cfg.FangsConfig.Profiles = []string{"bad-profile"}
+			app := New(cfg)
+
+			// setup multiple commands, which get loaded during config --load
+			opt1 := &options1{
+				Name1: "default-name1",
+			}
+			_ = app.SetupCommand(&cobra.Command{}, opt1)
+
+			opt2 := &options2{
+				Name2: "default-name2",
+			}
+			_ = app.SetupCommand(&cobra.Command{}, opt2)
+
+			var err error
+			_, _ = captureStd(func() {
+				configCmd := ConfigCommand(app, nil)
+				err = configCmd.Flags().Set("load", "true")
+				require.NoError(t, err)
+				err = configCmd.RunE(configCmd, nil)
+			})
+
+			// should have errors, but only be found once
+			require.Error(t, err)
+			require.Equal(t, 1, strings.Count(err.Error(), test.expected))
+		})
+	}
 }
