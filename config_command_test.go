@@ -3,6 +3,7 @@ package clio
 import (
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -225,6 +226,59 @@ func Test_ConsolidateProfileErrors(t *testing.T) {
 			// should have errors, but only be found once
 			require.Error(t, err)
 			require.Equal(t, 1, strings.Count(err.Error(), test.expected))
+		})
+	}
+}
+
+func Test_appendConfigLoadError(t *testing.T) {
+	type ty struct{}
+	typ := reflect.TypeOf(ty{})
+	typErrMsg := fmt.Sprintf("error loading config '%s.%s': ", typ.PkgPath(), typ.Name()) + "%w"
+
+	tests := []struct {
+		name     string
+		errs     []error
+		expected []error
+	}{
+		{
+			name: "no duplicates",
+			errs: []error{
+				fmt.Errorf("some error"),
+				fmt.Errorf("existing error"),
+				fmt.Errorf("existing error2"),
+				fmt.Errorf("new error"),
+			},
+			expected: []error{
+				fmt.Errorf(typErrMsg, fmt.Errorf("some error")),
+				fmt.Errorf(typErrMsg, fmt.Errorf("existing error")),
+				fmt.Errorf(typErrMsg, fmt.Errorf("existing error2")),
+				fmt.Errorf(typErrMsg, fmt.Errorf("new error")),
+			},
+		},
+		{
+			name: "duplicates",
+			errs: []error{
+				fmt.Errorf("some error"),
+				fmt.Errorf("duplicate error"),
+				fmt.Errorf("existing error"),
+				fmt.Errorf("duplicate error"),
+				fmt.Errorf("duplicate error"),
+			},
+			expected: []error{
+				fmt.Errorf(typErrMsg, fmt.Errorf("some error")),
+				fmt.Errorf("duplicate error"), // type should be removed and error not duplicated, since multiple types report the same error
+				fmt.Errorf(typErrMsg, fmt.Errorf("existing error")),
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var got []error
+			for _, err := range test.errs {
+				got = appendConfigLoadError(got, typ, err)
+			}
+			require.ElementsMatch(t, test.expected, got)
 		})
 	}
 }

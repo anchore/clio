@@ -146,16 +146,7 @@ func loadAllConfigs(cmd *cobra.Command, fangsCfg fangs.Config, allConfigs []any)
 			for t.Kind() == reflect.Pointer {
 				t = t.Elem()
 			}
-			if isProfileError(err) {
-				if hasProfileError(errs) {
-					// only report profile errors once
-					continue
-				}
-				// directly append the profile error, since this will be repeated for each configuration object and is applicable to all
-				errs = append(errs, err)
-			} else {
-				errs = append(errs, fmt.Errorf("error loading config '%s.%s': %w", t.PkgPath(), t.Name(), err))
-			}
+			errs = appendConfigLoadError(errs, t, err)
 		}
 	}
 	if len(errs) == 0 {
@@ -204,21 +195,25 @@ func summarizeLocations(fangsCfg fangs.Config, onlySuffix string) string {
 	return out
 }
 
-// fangs load may result in each configuration object being attempted to load with a failed profile for different reasons
-func isProfileError(err error) bool {
+// appendConfigLoadError appends errors including originating struct, but deduplicates identical errors that occur across multiple load calls
+func appendConfigLoadError(errs []error, t reflect.Type, err error) []error {
 	if err == nil {
-		return false
+		return errs
 	}
 	msg := err.Error()
-	return strings.Contains(msg, "not found in any configuration files") ||
-		strings.Contains(msg, "profile not found")
-}
-
-func hasProfileError(errs []error) bool {
-	for _, e := range errs {
-		if isProfileError(e) {
-			return true
+	// remove configuration object source when we get the same error from multiple sources
+	for i, e := range errs {
+		// already have this error, don't append
+		if e.Error() == msg {
+			return errs
+		}
+		// if we have an identical wrapped error, this occurred when loading multiple configurations so just show the error
+		if e, ok := e.(interface{ Unwrap() error }); ok {
+			if e.Unwrap().Error() == msg {
+				errs[i] = err
+				return errs
+			}
 		}
 	}
-	return false
+	return append(errs, fmt.Errorf("error loading config '%s.%s': %w", t.PkgPath(), t.Name(), err))
 }
