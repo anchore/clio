@@ -258,6 +258,26 @@ func TestLoggingConfig_AllowUI(t *testing.T) {
 	}
 }
 
+func TestForceNoTTY(t *testing.T) {
+	tests := []struct {
+		envVarValue string
+		want        bool
+	}{
+		{"", false},
+		{"0", false},
+		{"false", false},
+		{"other-string", false},
+		{"1", true},
+		{"true", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.envVarValue, func(t *testing.T) {
+			assert.Equal(t, tt.want, forceNoTTY(tt.envVarValue))
+		})
+	}
+}
+
 func Test_isPipedInput(t *testing.T) {
 
 	tests := []struct {

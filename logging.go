@@ -163,6 +163,10 @@ func (l *LoggingConfig) selectLevel() (logger.Level, error) {
 }
 
 func (l *LoggingConfig) AllowUI(stdin fs.File) bool {
+	if forceNoTTY(os.Getenv("NO_TTY")) {
+		return false
+	}
+
 	pipedInput, err := isPipedInput(stdin)
 	if err != nil || pipedInput {
 		// since we can't tell if there was piped input we assume that there could be to disable the ETUI
@@ -186,6 +190,16 @@ func (l *LoggingConfig) AllowUI(stdin fs.File) bool {
 	}
 
 	return l.Verbosity == 0
+}
+
+func forceNoTTY(noTTYenvVar string) bool {
+	switch strings.ToLower(noTTYenvVar) {
+	case "1":
+		return true
+	case "true":
+		return true
+	}
+	return false
 }
 
 // isPipedInput returns true if there is no input device, which means the user **may** be providing input via a pipe.
