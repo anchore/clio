@@ -41,7 +41,7 @@ func DefaultLogger(clioCfg Config, store redact.Store) (logger.Logger, error) {
 
 	l, err := logrus.New(
 		logrus.Config{
-			EnableConsole: cfg.Verbosity > 0 && !cfg.Quiet,
+			EnableConsole: !cfg.Quiet,
 			FileLocation:  cfg.FileLocation,
 			Level:         cfg.Level,
 			Formatter:     adaptLogFormatter(logrus.DefaultTextFormatter()),
