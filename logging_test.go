@@ -83,6 +83,19 @@ func Test_newLogger(t *testing.T) {
 				assert.Equal(t, "[0000]  INFO test *******\n", stripAnsi(buf.String()))
 			},
 		},
+		{
+			name: "warn logging is not discarded",
+			cfg:  &LoggingConfig{Level: "warn"},
+			assertLogger: func(log logger.Logger) {
+				c, ok := log.(logger.Controller)
+				require.True(t, ok)
+				out := c.GetOutput()
+				// attempt to cast as *os.File, which will fail if output
+				// has defaulted to io.Discard
+				_, ok = out.(*os.File)
+				require.True(t, ok)
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -254,6 +267,26 @@ func TestLoggingConfig_AllowUI(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.want, tt.cfg.AllowUI(tt.stdin))
+		})
+	}
+}
+
+func TestForceNoTTY(t *testing.T) {
+	tests := []struct {
+		envVarValue string
+		want        bool
+	}{
+		{"", false},
+		{"0", false},
+		{"false", false},
+		{"other-string", false},
+		{"1", true},
+		{"true", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.envVarValue, func(t *testing.T) {
+			assert.Equal(t, tt.want, forceNoTTY(tt.envVarValue))
 		})
 	}
 }
