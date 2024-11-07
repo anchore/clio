@@ -272,7 +272,13 @@ func (a *application) Run() {
 
 	if err := a.root.Execute(); err != nil {
 		msg := color.Red.Render(strings.TrimSpace(err.Error()))
-		fmt.Fprintln(os.Stderr, msg)
+		if a.state.Logger != nil {
+			a.state.Logger.Error(msg)
+		} else {
+			// what is this case for? when something before clio runs that causes an error, such as cobra flag parsing failures.
+			// This happens before the logger is setup, so we need to print to stderr directly.
+			fmt.Fprintln(os.Stderr, msg)
+		}
 		exitCode = 1
 	}
 }

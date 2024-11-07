@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"testing"
 
@@ -361,8 +362,14 @@ func Test_RunPanicWithoutRootCommand(t *testing.T) {
 }
 
 func Test_RunExitError(t *testing.T) {
+	d := t.TempDir()
+	logFile := filepath.Join(d, "log.txt")
+
 	if os.Getenv("CLIO_RUN_EXIT_ERROR") == "YES" {
-		app := New(*NewSetupConfig(Identification{}).WithNoBus())
+		app := New(*NewSetupConfig(Identification{}).WithNoBus().WithLoggingConfig(LoggingConfig{
+			Level:        logger.InfoLevel,
+			FileLocation: os.Getenv("CLIO_LOG_FILE"),
+		}))
 		app.SetupRootCommand(&cobra.Command{
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fmt.Errorf("an error occurred")
@@ -373,18 +380,23 @@ func Test_RunExitError(t *testing.T) {
 	}
 
 	cmd := exec.Command(os.Args[0], "-test.run=Test_RunExitError")
-	cmd.Env = append(os.Environ(), "CLIO_RUN_EXIT_ERROR=YES")
+	cmd.Env = append(os.Environ(), fmt.Sprintf("CLIO_LOG_FILE=%s", logFile), "CLIO_RUN_EXIT_ERROR=YES")
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	err := cmd.Run()
+
+	logContents, readErr := os.ReadFile(logFile)
+	require.NoError(t, readErr)
+
 	var e *exec.ExitError
 	if errors.As(err, &e) && !e.Success() {
 		// ensure that errors are reported to stderr, not stdout
 		assert.Contains(t, stderr.String(), "an error occurred")
 		assert.NotContains(t, stdout.String(), "an error occurred")
+		assert.Contains(t, string(logContents), "an error occurred")
 		return
 	}
 	t.Fatalf("process ran with err %v, want exit status 1", err)
