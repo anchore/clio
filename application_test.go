@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"testing"
 
@@ -71,18 +72,6 @@ func (m mockUI) Handle(_ partybus.Event) error {
 
 func (m mockUI) Teardown(_ bool) error {
 	return nil
-}
-
-var _ logger.Logger = (*mockLogger)(nil)
-
-type mockLogger struct {
-	logger.Logger
-}
-
-func newMockLogger() *mockLogger {
-	return &mockLogger{
-		Logger: discard.New(),
-	}
 }
 
 func Test_Application_Setup_WiresFangs(t *testing.T) {
@@ -155,10 +144,14 @@ func Test_Application_Setup_PassLoggerConstructor(t *testing.T) {
 	name := "puppy"
 	version := "2.0"
 
+	type mockLogger struct {
+		logger.Logger
+	}
+
 	cfg := NewSetupConfig(Identification{Name: name, Version: version}).
 		WithUI(&mockUI{}).
 		WithLoggerConstructor(func(_ Config, _ redact.Store) (logger.Logger, error) {
-			return newMockLogger(), nil
+			return &mockLogger{Logger: discard.New()}, nil
 		})
 
 	app := New(*cfg)
@@ -229,6 +222,7 @@ func Test_Application_Setup_RunsInitializers(t *testing.T) {
 	t.Setenv("PUPPY_THING_STUFF", "ruff-ruff!")
 
 	app := New(*cfg)
+	assert.False(t, app.(*application).resourcesLoaded)
 
 	cmd := app.SetupCommand(
 		&cobra.Command{
@@ -240,6 +234,8 @@ func Test_Application_Setup_RunsInitializers(t *testing.T) {
 		})
 
 	require.NoError(t, cmd.Execute())
+
+	assert.True(t, app.(*application).resourcesLoaded)
 }
 
 func Test_Application_Setup_RunsPostRuns(t *testing.T) {
@@ -361,8 +357,14 @@ func Test_RunPanicWithoutRootCommand(t *testing.T) {
 }
 
 func Test_RunExitError(t *testing.T) {
+	d := t.TempDir()
+	logFile := filepath.Join(d, "log.txt")
+
 	if os.Getenv("CLIO_RUN_EXIT_ERROR") == "YES" {
-		app := New(*NewSetupConfig(Identification{}).WithNoBus())
+		app := New(*NewSetupConfig(Identification{}).WithNoBus().WithLoggingConfig(LoggingConfig{
+			Level:        logger.InfoLevel,
+			FileLocation: os.Getenv("CLIO_LOG_FILE"),
+		}))
 		app.SetupRootCommand(&cobra.Command{
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fmt.Errorf("an error occurred")
@@ -373,18 +375,23 @@ func Test_RunExitError(t *testing.T) {
 	}
 
 	cmd := exec.Command(os.Args[0], "-test.run=Test_RunExitError")
-	cmd.Env = append(os.Environ(), "CLIO_RUN_EXIT_ERROR=YES")
+	cmd.Env = append(os.Environ(), fmt.Sprintf("CLIO_LOG_FILE=%s", logFile), "CLIO_RUN_EXIT_ERROR=YES")
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	err := cmd.Run()
+
+	logContents, readErr := os.ReadFile(logFile)
+	require.NoError(t, readErr)
+
 	var e *exec.ExitError
 	if errors.As(err, &e) && !e.Success() {
-		// ensure that errors are reported to stderr, not stdout
+		// ensure that errors are reported to stderr/log, not stdout
 		assert.Contains(t, stderr.String(), "an error occurred")
 		assert.NotContains(t, stdout.String(), "an error occurred")
+		assert.Contains(t, string(logContents), "an error occurred")
 		return
 	}
 	t.Fatalf("process ran with err %v, want exit status 1", err)
@@ -415,4 +422,89 @@ func Test_Run_InvokesBusExit(t *testing.T) {
 	e := <-events
 
 	assert.Equal(t, e.Type, ExitEventType)
+}
+
+type mockErrorLogger struct {
+	logger.Logger
+	msg string
+}
+
+func (m *mockErrorLogger) Error(msg ...any) {
+	m.msg += fmt.Sprintf("%+v", msg)
+}
+
+func TestHandleExitError(t *testing.T) {
+	tests := []struct {
+		name        string
+		app         application
+		err         error
+		expectLog   bool
+		expectPrint bool
+	}{
+		{
+			name: "with logger and resources loaded",
+			app: application{
+				state: State{
+					Logger: &mockErrorLogger{},
+				},
+				resourcesLoaded: true,
+			},
+			err:         errors.New("test error"),
+			expectLog:   true,
+			expectPrint: false,
+		},
+		{
+			name: "with logger but resources not loaded",
+			app: application{
+				state: State{
+					Logger: &mockErrorLogger{},
+				},
+				resourcesLoaded: false,
+			},
+			err:         errors.New("test error"),
+			expectLog:   false,
+			expectPrint: true,
+		},
+		{
+			name: "without logger and resources loaded",
+			app: application{
+				state:           State{},
+				resourcesLoaded: true,
+			},
+			err:         errors.New("test error"),
+			expectLog:   false,
+			expectPrint: true,
+		},
+		{
+			name: "without logger and resources not loaded",
+			app: application{
+				state:           State{},
+				resourcesLoaded: false,
+			},
+			err:         errors.New("test error"),
+			expectLog:   false,
+			expectPrint: true,
+		},
+	}
+
+	originalStderr := os.Stderr
+	defer func() { os.Stderr = originalStderr }()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stderr bytes.Buffer
+
+			tt.app.handleExitError(tt.err, &stderr)
+
+			if tt.expectLog {
+				assert.Contains(t, tt.app.state.Logger.(*mockErrorLogger).msg, "test error")
+			}
+
+			if tt.expectPrint {
+				assert.Contains(t, stderr.String(), "test error")
+			} else {
+				assert.Empty(t, stderr.String())
+			}
+		})
+	}
 }
