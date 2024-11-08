@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"strings"
@@ -35,9 +36,10 @@ type Application interface {
 }
 
 type application struct {
-	root        *cobra.Command
-	setupConfig SetupConfig `yaml:"-" mapstructure:"-"`
-	state       State       `yaml:"-" mapstructure:"-"`
+	root            *cobra.Command
+	setupConfig     SetupConfig `yaml:"-" mapstructure:"-"`
+	state           State       `yaml:"-" mapstructure:"-"`
+	resourcesLoaded bool
 }
 
 var _ interface {
@@ -69,7 +71,7 @@ func (a *application) Setup(cfgs ...any) func(_ *cobra.Command, _ []string) erro
 	return func(cmd *cobra.Command, _ []string) error {
 		// allow for the all configuration to be loaded first, then allow for the application
 		// PostLoad() to run, allowing the setup of resources (logger, bus, ui, etc.) and run user initializers
-		// as early as possible before the final configuration is logged. This allows for a couple things:
+		// as early as possible before the final configuration is logged. This allows for a couple of things:
 		// 1. user initializers to account for taking action before logging the final configuration (such as log redactions).
 		// 2. other user-facing PostLoad() functions to be able to use the logger, bus, etc. as early as possible. (though it's up to the caller on how these objects are made accessible)
 		allConfigs, err := a.loadConfigs(cmd, cfgs...)
@@ -112,6 +114,7 @@ func (a *application) runInitializers() error {
 			return err
 		}
 	}
+	a.resourcesLoaded = true
 	return nil
 }
 
@@ -271,15 +274,25 @@ func (a *application) Run() {
 	}()
 
 	if err := a.root.Execute(); err != nil {
-		msg := color.Red.Render(strings.TrimSpace(err.Error()))
-		if a.state.Logger != nil {
-			a.state.Logger.Error(msg)
-		} else {
-			// what is this case for? when something before clio runs that causes an error, such as cobra flag parsing failures.
-			// This happens before the logger is setup, so we need to print to stderr directly.
-			fmt.Fprintln(os.Stderr, msg)
-		}
+		a.handleExitError(err, os.Stderr)
+
 		exitCode = 1
+	}
+}
+
+func (a application) handleExitError(err error, stderr io.Writer) {
+	msg := color.Red.Render(strings.TrimSpace(err.Error()))
+
+	hasLogger := a.state.Logger != nil
+	shouldLog := hasLogger && a.resourcesLoaded
+	shouldPrint := !hasLogger || !a.resourcesLoaded
+
+	if shouldLog {
+		a.state.Logger.Error(msg)
+	}
+
+	if shouldPrint {
+		fmt.Fprintln(stderr, msg)
 	}
 }
 
