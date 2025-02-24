@@ -5,7 +5,7 @@ go 1.22
 require (
 	github.com/anchore/fangs v0.0.0-20241014201141-b6e4b3469f10
 	github.com/anchore/go-logger v0.0.0-20230725134548-c21dafa1ec5a
-	github.com/google/go-cmp v0.6.0
+	github.com/google/go-cmp v0.7.0
 	github.com/gookit/color v1.5.4
 	github.com/iancoleman/strcase v0.3.0
 	github.com/mitchellh/go-homedir v1.1.0
