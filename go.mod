@@ -1,6 +1,7 @@
 module github.com/anchore/clio
 
 go 1.22
+toolchain go1.23.7
 
 require (
 	github.com/anchore/fangs v0.0.0-20241014201141-b6e4b3469f10
@@ -16,7 +17,7 @@ require (
 	github.com/spf13/pflag v1.0.6
 	github.com/stretchr/testify v1.10.0
 	github.com/wagoodman/go-partybus v0.0.0-20230516145632-8ccac152c651
-	golang.org/x/term v0.29.0
+	golang.org/x/term v0.30.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -50,7 +51,7 @@ require (
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9 // indirect
-	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 )
