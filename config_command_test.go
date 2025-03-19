@@ -2,12 +2,12 @@ package clio
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
-	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 )
@@ -30,7 +30,7 @@ func Test_ConfigCommandDefaults(t *testing.T) {
 	// emulate a PostLoad hook which adds values to redact
 	app.(*application).State().RedactStore.Add("default-password") // config file values should not be loaded
 
-	userHome, _ := homedir.Dir()
+	userHome, _ := os.UserHomeDir()
 	opt := &options{
 		SomePath: fmt.Sprintf("%s/some/dir", userHome),
 		Name:     "default-name",
