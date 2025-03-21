@@ -25,6 +25,8 @@ type Initializer func(*State) error
 
 type PostRun func(*State, error)
 
+type MapExitCode func(error) int
+
 type postConstruct func(*application)
 
 type Application interface {
@@ -277,6 +279,9 @@ func (a *application) Run() {
 		a.handleExitError(err, os.Stderr)
 
 		exitCode = 1
+		if a.setupConfig.mapExitCode != nil {
+			exitCode = a.setupConfig.mapExitCode(err)
+		}
 	}
 }
 
