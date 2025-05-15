@@ -29,8 +29,14 @@ func (d *DevelopmentConfig) PostLoad() error {
 	return nil
 }
 
-func parseProfile(p Profile) func(*profile.Profile) {
-	return profilers()[strings.ToLower(strings.TrimSpace(string(p)))]
+func parseProfile(p Profile) func() func() {
+	profiler := profilers()[strings.ToLower(strings.TrimSpace(string(p)))]
+	if profiler == nil {
+		return nil
+	}
+	return func() func() {
+		return profile.Start(profiler).Stop
+	}
 }
 
 func profilers() map[string]func(*profile.Profile) {
@@ -45,5 +51,6 @@ func profilers() map[string]func(*profile.Profile) {
 		"block":     profile.BlockProfile,
 		"clock":     profile.ClockProfile,
 		"goroutine": profile.GoroutineProfile,
+		"trace":     profile.TraceProfile,
 	}
 }

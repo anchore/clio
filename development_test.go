@@ -1,8 +1,10 @@
 package clio
 
 import (
+	"fmt"
 	"testing"
 
+	"github.com/pkg/profile"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -11,52 +13,53 @@ func Test_parseProfile(t *testing.T) {
 	tests := []struct {
 		name    string
 		profile string
-		want    Profile
+		want    func(*profile.Profile)
 	}{
 		{
 			name:    "empty",
 			profile: "",
-			want:    ProfilingDisabled,
+			want:    nil,
 		},
 		{
 			name:    "disabled",
 			profile: "disabled",
-			want:    ProfilingDisabled,
+			want:    nil,
 		},
 		{
 			name:    "none",
 			profile: "none",
-			want:    ProfilingDisabled,
+			want:    nil,
 		},
 		{
 			name:    "mem - direct",
 			profile: "mem",
-			want:    ProfileMem,
+			want:    profile.MemProfile,
 		},
 		{
 			name:    "cpu - direct",
 			profile: "cpu",
-			want:    ProfileCPU,
+			want:    profile.CPUProfile,
 		},
 		{
 			name:    "memory + case test",
 			profile: "meMorY",
-			want:    ProfileMem,
+			want:    profile.MemProfile,
 		},
 		{
 			name:    "memory",
 			profile: "memory",
-			want:    ProfileMem,
+			want:    profile.MemProfile,
 		},
 		{
 			name:    "bogus",
 			profile: "bogus",
-			want:    "",
+			want:    nil,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, parseProfile(tt.profile))
+			funcDesc := func(f any) string { return fmt.Sprintf("%#v", f) }
+			assert.Equal(t, funcDesc(tt.want), funcDesc(parseProfile(Profile(tt.profile))))
 		})
 	}
 }
