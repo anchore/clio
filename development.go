@@ -30,13 +30,17 @@ func (d *DevelopmentConfig) PostLoad() error {
 }
 
 func parseProfile(p Profile) func() func() {
-	profiler := profilers()[strings.ToLower(strings.TrimSpace(string(p)))]
+	profiler := profileFunc(p)
 	if profiler == nil {
 		return nil
 	}
 	return func() func() {
 		return profile.Start(profiler).Stop
 	}
+}
+
+func profileFunc(p Profile) func(*profile.Profile) {
+	return profilers()[strings.ToLower(strings.TrimSpace(string(p)))]
 }
 
 func profilers() map[string]func(*profile.Profile) {

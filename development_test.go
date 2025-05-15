@@ -59,7 +59,7 @@ func Test_parseProfile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			funcDesc := func(f any) string { return fmt.Sprintf("%#v", f) }
-			assert.Equal(t, funcDesc(tt.want), funcDesc(parseProfile(Profile(tt.profile))))
+			assert.Equal(t, funcDesc(tt.want), funcDesc(profileFunc(Profile(tt.profile))))
 		})
 	}
 }
