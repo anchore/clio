@@ -148,7 +148,9 @@ func (a *application) WrapRunE(fn func(cmd *cobra.Command, args []string) error)
 					a.state.Bus.Publish(ExitEvent(false))
 				}
 			}()
-			defer a.runPostRuns(err)
+			defer func() {
+				a.runPostRuns(err)
+			}()
 			err = fn(cmd, args)
 			return
 		}
