@@ -266,6 +266,38 @@ func Test_Application_Setup_RunsPostRuns(t *testing.T) {
 	assert.Equal(t, "bark-bark!", os.Getenv("PUPPY_THING_STUFF"))
 }
 
+func Test_Application_Setup_RunsPostRunsOnError(t *testing.T) {
+	name := "puppy"
+	version := "2.0"
+
+	cfg := NewSetupConfig(Identification{Name: name, Version: version}).WithPostRuns(
+		func(state *State, err error) {
+			if err != nil {
+				t.Setenv("PUPPY_ERROR", err.Error())
+			}
+		},
+	).WithMapExitCode(func(err error) int {
+		return 0 // ensure the test won't exit
+	})
+
+	t.Setenv("PUPPY_ERROR", "")
+
+	app := New(*cfg)
+
+	app.SetupRootCommand(
+		&cobra.Command{
+			DisableFlagParsing: true,
+			Args:               cobra.ArbitraryArgs,
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return errors.New("bark-bark!")
+			},
+		})
+
+	app.Run()
+
+	assert.Equal(t, "bark-bark!", os.Getenv("PUPPY_ERROR"))
+}
+
 func Test_SetupCommand(t *testing.T) {
 	p := &persistent{}
 
