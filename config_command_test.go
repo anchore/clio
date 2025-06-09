@@ -121,8 +121,8 @@ func Test_ConfigCommandLoad(t *testing.T) {
   file: ''
 
 dev:
-  # capture resource profiling data (available: [cpu, mem]) (env: MY_APP_DEV_PROFILE)
-  profile: 'none'
+  # capture resource profiling data (available: [cpu, mem, ...]) (env: MY_APP_DEV_PROFILE)
+  profile: ''
 
 # (env: MY_APP_NAME)
 name: 'env-name'
