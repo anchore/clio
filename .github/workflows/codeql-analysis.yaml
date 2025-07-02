@@ -37,6 +37,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 #v4.1.7
+        with:
+          persist-credentials: false
 
       - name: Install Go
         uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b #v5.4.0
@@ -45,7 +47,7 @@ jobs:
 
       # Initializes the CodeQL tools for scanning.
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@08bc0cf022445eacafaa248bf48da20f26b8fd40 #v3.28.6
+        uses: github/codeql-action/init@181d5eefc20863364f96762470ba6f862bdef56b #v3.29.2
         with:
           languages: ${{ matrix.language }}
           # If you wish to specify custom queries, you can do so here or in a config file.
@@ -56,7 +58,7 @@ jobs:
       # Autobuild attempts to build any compiled languages  (C/C++, C#, or Java).
       # If this step fails, then you should remove it and run the build manually (see below)
       - name: Autobuild
-        uses: github/codeql-action/autobuild@08bc0cf022445eacafaa248bf48da20f26b8fd40 #v3.28.6
+        uses: github/codeql-action/autobuild@181d5eefc20863364f96762470ba6f862bdef56b #v3.29.2
 
       # ℹ️ Command-line programs to run using the OS shell.
       # 📚 https://git.io/JvXDl
@@ -70,4 +72,4 @@ jobs:
       #   make release
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@08bc0cf022445eacafaa248bf48da20f26b8fd40 #v3.28.6
+        uses: github/codeql-action/analyze@181d5eefc20863364f96762470ba6f862bdef56b #v3.29.2
