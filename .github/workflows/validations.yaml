@@ -6,6 +6,8 @@ on:
       - main
   pull_request:
 
+permissions:
+  contents: read
 
 jobs:
 
@@ -15,6 +17,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Bootstrap environment
         uses: ./.github/actions/bootstrap
@@ -29,6 +33,8 @@ jobs:
     steps:
 
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Bootstrap environment
         uses: ./.github/actions/bootstrap
