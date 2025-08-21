@@ -11,7 +11,6 @@ import (
 
 	"github.com/gookit/color"
 	"github.com/pborman/indent"
-	"github.com/pkg/profile"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"gopkg.in/yaml.v3"
@@ -161,11 +160,8 @@ func (a *application) WrapRunE(fn func(cmd *cobra.Command, args []string) error)
 
 func (a *application) execute(ctx context.Context, errs <-chan error) error {
 	if a.state.Config.Dev != nil {
-		switch a.state.Config.Dev.Profile {
-		case ProfileCPU:
-			defer profile.Start(profile.CPUProfile).Stop()
-		case ProfileMem:
-			defer profile.Start(profile.MemProfile).Stop()
+		if profiler := parseProfile(a.state.Config.Dev.Profile); profiler != nil {
+			defer profiler()()
 		}
 	}
 
