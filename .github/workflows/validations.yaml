@@ -16,12 +16,8 @@ jobs:
     name: "Static analysis"
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
-        with:
-          persist-credentials: false
-
       - name: Bootstrap environment
-        uses: ./.github/actions/bootstrap
+        uses: anchore/go-make/.github/actions/bootstrap@latest
 
       - name: Run static analysis
         run: make static-analysis
@@ -31,13 +27,8 @@ jobs:
     name: "Unit tests"
     runs-on: ubuntu-24.04
     steps:
-
-      - uses: actions/checkout@v5
-        with:
-          persist-credentials: false
-
       - name: Bootstrap environment
-        uses: ./.github/actions/bootstrap
+        uses: anchore/go-make/.github/actions/bootstrap@latest
 
       - name: Run unit tests
         run: make unit
