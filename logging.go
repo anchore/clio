@@ -98,7 +98,7 @@ var _ LoggerConstructor = DefaultLogger
 // LoggingConfig contains all logging-related configuration options available to the user via the application config.
 type LoggingConfig struct {
 	Quiet        bool         `yaml:"quiet" json:"quiet" mapstructure:"quiet"` // -q, indicates to not show any status output to stderr
-	Verbosity    int          `yaml:"-" json:"-" mapstructure:"verbosity"`     // -v or -vv , controlling which UI (ETUI vs logging) and what the log level should be
+	Verbosity    int          `yaml:"-" json:"-" mapstructure:"-"`             // -v or -vv , controlling which UI (ETUI vs logging) and what the log level should be
 	Level        logger.Level `yaml:"level" json:"level" mapstructure:"level"` // the log level string hint
 	FileLocation string       `yaml:"file" json:"file" mapstructure:"file"`    // the file path to write logs to
 
