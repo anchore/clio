@@ -1,12 +1,12 @@
 module builder
 
-go 1.24.1
+go 1.25.0
 
-require github.com/anchore/go-make v0.0.3-0.20251024212622-e7f9408a5aa6
+require github.com/anchore/go-make v0.1.0
 
 require (
-	github.com/bmatcuk/doublestar/v4 v4.9.1 // indirect
-	github.com/goccy/go-yaml v1.18.0 // indirect
-	golang.org/x/mod v0.29.0 // indirect
-	golang.org/x/sys v0.37.0 // indirect
+	github.com/bmatcuk/doublestar/v4 v4.10.0 // indirect
+	github.com/goccy/go-yaml v1.19.2 // indirect
+	golang.org/x/mod v0.34.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
 )

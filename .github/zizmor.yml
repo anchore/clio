@@ -1,6 +1,6 @@
 rules:
   unpinned-uses:
-    config:
-      policies:
-        # anchore/workflows is an internal repository; using @main is acceptable
-        anchore/*: any
+    ignore:
+      # Allow unpinned uses of trusted internal anchore/workflows actions
+      - oss-project-board-add.yaml
+      - remove-awaiting-response-label.yaml
