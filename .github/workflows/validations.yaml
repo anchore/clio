@@ -16,8 +16,8 @@ jobs:
     name: "Static analysis"
     runs-on: ubuntu-24.04
     steps:
-      - name: Bootstrap environment
-        uses: anchore/go-make/.github/actions/bootstrap@latest
+      # setup checkout, go, go-make, binny, and cache go modules
+      - uses: anchore/go-make/.github/actions/setup@383ef7852b8ae43a30f424896b52479186d2ea4d # v0.1.0
 
       - name: Run static analysis
         run: make static-analysis
@@ -27,8 +27,8 @@ jobs:
     name: "Unit tests"
     runs-on: ubuntu-24.04
     steps:
-      - name: Bootstrap environment
-        uses: anchore/go-make/.github/actions/bootstrap@latest
+      # setup checkout, go, go-make, binny, and cache go modules
+      - uses: anchore/go-make/.github/actions/setup@383ef7852b8ae43a30f424896b52479186d2ea4d # v0.1.0
 
       - name: Run unit tests
         run: make unit
