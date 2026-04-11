@@ -50,9 +50,6 @@ func Test_ConfigCommandDefaults(t *testing.T) {
   # (env: MY_APP_LOG_QUIET)
   quiet: false
 
-  # (env: MY_APP_LOG_VERBOSITY)
-  verbosity: 0
-
   # (env: MY_APP_LOG_LEVEL)
   level: ''
 
@@ -110,9 +107,6 @@ func Test_ConfigCommandLoad(t *testing.T) {
 	require.Equal(t, `log:
   # (env: MY_APP_LOG_QUIET)
   quiet: false
-
-  # (env: MY_APP_LOG_VERBOSITY)
-  verbosity: 0
 
   # explicitly set the logging level (available: [error warn info debug trace]) (env: MY_APP_LOG_LEVEL)
   level: 'info'
