@@ -232,7 +232,7 @@ func Test_ConsolidateProfileErrors(t *testing.T) {
 
 func Test_appendConfigLoadError(t *testing.T) {
 	type ty struct{}
-	typ := reflect.TypeOf(ty{})
+	typ := reflect.TypeFor[ty]()
 	typErrMsg := fmt.Sprintf("error loading config '%s.%s': ", typ.PkgPath(), typ.Name()) + "%w"
 
 	tests := []struct {
