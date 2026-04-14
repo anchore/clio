@@ -110,10 +110,8 @@ func capture(target **os.File, writer io.Writer) (close func()) {
 	r, w, _ := os.Pipe()
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
 
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		buf := make([]byte, 1024)
 		for {
 			n, err := r.Read(buf)
@@ -124,7 +122,7 @@ func capture(target **os.File, writer io.Writer) (close func()) {
 				break
 			}
 		}
-	}()
+	})
 
 	*target = w
 
