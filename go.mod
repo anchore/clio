@@ -1,6 +1,6 @@
 module github.com/anchore/clio
 
-go 1.26.2
+go 1.25.0
 
 require (
 	github.com/anchore/fangs v0.0.0-20250319155437-a26984174d7d
