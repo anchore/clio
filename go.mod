@@ -3,9 +3,9 @@ module github.com/anchore/clio
 go 1.25.0
 
 require (
-	github.com/anchore/fangs v0.1.1-0.20260421185343-df607d667563
+	github.com/anchore/fangs v0.1.0
 	github.com/anchore/go-homedir v0.1.0
-	github.com/anchore/go-logger v0.1.1-0.20260421185257-01c4e7fbebe1
+	github.com/anchore/go-logger v0.1.0
 	github.com/google/go-cmp v0.7.0
 	github.com/gookit/color v1.6.0
 	github.com/iancoleman/strcase v0.3.0
