@@ -6,8 +6,7 @@ on:
       - main
   pull_request:
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
 
@@ -15,6 +14,8 @@ jobs:
     # Note: changing this job name requires making the same update in the .github/workflows/release.yaml pipeline
     name: "Static analysis"
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     steps:
       # setup checkout, go, go-make, binny, and cache go modules
       - uses: anchore/go-make/.github/actions/setup@383ef7852b8ae43a30f424896b52479186d2ea4d # v0.1.0
@@ -26,6 +27,8 @@ jobs:
     # Note: changing this job name requires making the same update in the .github/workflows/release.yaml pipeline
     name: "Unit tests"
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     steps:
       # setup checkout, go, go-make, binny, and cache go modules
       - uses: anchore/go-make/.github/actions/setup@383ef7852b8ae43a30f424896b52479186d2ea4d # v0.1.0
