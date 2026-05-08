@@ -7,7 +7,7 @@ require (
 	github.com/anchore/go-homedir v0.1.0
 	github.com/anchore/go-logger v0.1.0
 	github.com/google/go-cmp v0.7.0
-	github.com/gookit/color v1.6.0
+	github.com/gookit/color v1.6.1
 	github.com/iancoleman/strcase v0.3.0
 	github.com/pborman/indent v1.2.1
 	github.com/pkg/profile v1.7.0
