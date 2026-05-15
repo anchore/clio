@@ -11,7 +11,6 @@ func main() {
 	Makefile(
 		gotest.Tasks(),
 		golint.Tasks(),
-		release.ChangelogTask(),
-		release.TagAndCreateGHRelease(),
+		release.Tasks(),
 	)
 }
