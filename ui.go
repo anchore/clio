@@ -60,7 +60,7 @@ func (u *UICollection) setup(subscription partybus.Unsubscribable) error {
 	return setupErr
 }
 
-func (u UICollection) Handle(event partybus.Event) error {
+func (u *UICollection) Handle(event partybus.Event) error {
 	u.lock.Lock()
 	defer u.lock.Unlock()
 	if u.active == nil {
