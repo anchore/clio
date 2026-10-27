@@ -143,3 +143,23 @@ func TestBridgeLevel(t *testing.T) {
 		})
 	}
 }
+
+func TestLogrusBridge_concurrentAttach(t *testing.T) {
+	src := upstreamLogrus.New()
+	var b logrusBridge
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for range 100 {
+			src.Warn("lib-warn")
+		}
+	}()
+	for range 100 {
+		dst, _ := newCapturingLogger(t)
+		b.attach(src, dst, logger.DebugLevel)
+	}
+	<-done
+
+	assert.Len(t, src.Hooks[upstreamLogrus.WarnLevel], 1, "the hook should only be installed once")
+}

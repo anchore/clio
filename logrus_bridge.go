@@ -22,21 +22,27 @@ const (
 var stdLogrusBridge logrusBridge
 
 type logrusBridge struct {
-	once   sync.Once
-	target atomic.Pointer[logger.Logger]
+	// mu keeps the target and level of concurrent attach calls from interleaving. Fire only reads target.
+	mu        sync.Mutex
+	installed bool
+	target    atomic.Pointer[logger.Logger]
 }
 
 // attach takes over src (once) and forwards its entries to dst. Repeated calls retarget the bridge and reset the
 // level. src's own output is discarded, so this must not be used on a logger the application writes through directly.
 func (b *logrusBridge) attach(src *upstreamLogrus.Logger, dst logger.Logger, level logger.Level) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	b.target.Store(&dst)
-	b.once.Do(func() {
+	if !b.installed {
+		b.installed = true
 		// add the hook before discarding output so no entries are lost in between
 		src.AddHook(b)
 		// formatting entries that are written to io.Discard is wasted work
 		src.SetFormatter(nopFormatter{})
 		src.SetOutput(io.Discard)
-	})
+	}
 	src.SetLevel(bridgeLevel(level))
 }
 
