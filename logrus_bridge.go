@@ -51,14 +51,10 @@ func (b *logrusBridge) attach(src *upstreamLogrus.Logger, dst logger.Logger, lev
 }
 
 // bridgeLevel picks the most verbose logrus level whose entries would still be visible at the given level, keeping in
-// mind that Fire demotes info entries to debug. This is only a pre-filter (the target logger filters again), so an
-// unrecognized level fails open rather than dropping library errors.
+// mind that Fire demotes info entries to debug. Levels are matched exactly, like the go-logger logrus adapter does, so
+// anything it would treat as disabled is disabled here too.
 func bridgeLevel(level logger.Level) upstreamLogrus.Level {
-	lvl, err := logger.LevelFromString(string(level))
-	if err != nil {
-		return upstreamLogrus.WarnLevel
-	}
-	switch lvl {
+	switch level {
 	case logger.TraceLevel:
 		return upstreamLogrus.TraceLevel
 	case logger.DebugLevel:
@@ -68,7 +64,8 @@ func bridgeLevel(level logger.Level) upstreamLogrus.Level {
 	case logger.ErrorLevel:
 		return upstreamLogrus.ErrorLevel
 	}
-	// disabled
+	// disabled (e.g. -q). Note this also hides a library error logged just before it exits the process, such as
+	// go.podman.io/storage's unshare setup, so the process can exit non-zero without a message.
 	return upstreamLogrus.PanicLevel
 }
 

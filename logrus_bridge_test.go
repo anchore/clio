@@ -146,8 +146,8 @@ func TestBridgeLevel(t *testing.T) {
 		{logger.WarnLevel, upstreamLogrus.WarnLevel},
 		{logger.ErrorLevel, upstreamLogrus.ErrorLevel},
 		{logger.DisabledLevel, upstreamLogrus.PanicLevel},
-		{"WARNING", upstreamLogrus.WarnLevel},
-		{"bogus", upstreamLogrus.WarnLevel},
+		{"WARNING", upstreamLogrus.PanicLevel},
+		{"bogus", upstreamLogrus.PanicLevel},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.level), func(t *testing.T) {
