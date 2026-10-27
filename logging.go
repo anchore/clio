@@ -55,9 +55,6 @@ func DefaultLogger(clioCfg Config, store redact.Store) (logger.Logger, error) {
 		l = redact.New(l, store)
 	}
 
-	// bridge after wrapping so library entries are redacted too
-	stdLogrusBridge.attach(upstreamLogrus.StandardLogger(), l, cfg.Level)
-
 	return l, nil
 }
 

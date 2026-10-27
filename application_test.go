@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"testing"
 
+	upstreamLogrus "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -206,6 +207,56 @@ func Test_Application_Setup_ConfigureLogger(t *testing.T) {
 
 	// prove this is a NOT a nil logger
 	assert.Equal(t, "[0000]  INFO test\n", stripAnsi(buf.String()))
+}
+
+func Test_Application_Setup_BridgesLogrus(t *testing.T) {
+	resetStdLogrus(t)
+
+	cfg := NewSetupConfig(Identification{Name: "puppy", Version: "2.0"}).
+		WithLoggingConfig(LoggingConfig{Level: logger.InfoLevel})
+
+	app := New(*cfg)
+	cmd := app.SetupRootCommand(&cobra.Command{
+		DisableFlagParsing: true,
+		Args:               cobra.ArbitraryArgs,
+		Run:                func(cmd *cobra.Command, args []string) {},
+	})
+	require.NoError(t, cmd.Execute())
+
+	state := app.(*application).State()
+	state.RedactStore.Add("s3cret")
+	c, ok := state.Logger.(logger.Controller)
+	require.True(t, ok)
+	buf := &bytes.Buffer{}
+	c.SetOutput(buf)
+
+	upstreamLogrus.WithField("token", "s3cret").Warn("lib-warn s3cret")
+	upstreamLogrus.Info("lib-info")
+
+	out := stripAnsi(buf.String())
+	assert.Contains(t, out, "lib-warn *******")
+	assert.Contains(t, out, "token=*******")
+	assert.Contains(t, out, "from=logrus")
+	assert.NotContains(t, out, "s3cret")
+	assert.NotContains(t, out, "lib-info", "library info is debug from the application's point of view")
+}
+
+func Test_Application_Setup_WithoutLogrusBridge(t *testing.T) {
+	resetStdLogrus(t)
+
+	cfg := NewSetupConfig(Identification{Name: "puppy", Version: "2.0"}).WithoutLogrusBridge()
+
+	app := New(*cfg)
+	cmd := app.SetupRootCommand(&cobra.Command{
+		DisableFlagParsing: true,
+		Args:               cobra.ArbitraryArgs,
+		Run:                func(cmd *cobra.Command, args []string) {},
+	})
+	require.NoError(t, cmd.Execute())
+
+	std := upstreamLogrus.StandardLogger()
+	assert.Empty(t, std.Hooks)
+	assert.Equal(t, os.Stderr, std.Out)
 }
 
 func Test_Application_Setup_RunsInitializers(t *testing.T) {

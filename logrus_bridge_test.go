@@ -2,6 +2,7 @@ package clio
 
 import (
 	"io"
+	"os"
 	"testing"
 
 	upstreamLogrus "github.com/sirupsen/logrus"
@@ -20,6 +21,22 @@ func newCapturingLogger(t *testing.T) (logger.Logger, *logrustest.Hook) {
 	l, err := logrus.Use(backing, logrus.Config{Level: logger.TraceLevel})
 	require.NoError(t, err)
 	return l, logrustest.NewLocal(backing)
+}
+
+// resetStdLogrus puts logrus.StandardLogger() back to its stock state now and when the test ends, since application
+// setup bridges it process-wide.
+func resetStdLogrus(t *testing.T) {
+	t.Helper()
+	reset := func() {
+		std := upstreamLogrus.StandardLogger()
+		std.ReplaceHooks(make(upstreamLogrus.LevelHooks))
+		std.SetOutput(os.Stderr)
+		std.SetFormatter(new(upstreamLogrus.TextFormatter))
+		std.SetLevel(upstreamLogrus.InfoLevel)
+		stdLogrusBridge = logrusBridge{}
+	}
+	reset()
+	t.Cleanup(reset)
 }
 
 func TestLogrusBridge_forwardsEntries(t *testing.T) {
