@@ -3,6 +3,7 @@ package clio
 import (
 	"fmt"
 
+	upstreamLogrus "github.com/sirupsen/logrus"
 	"github.com/wagoodman/go-partybus"
 
 	"github.com/anchore/go-logger"
@@ -34,6 +35,10 @@ func (s *State) setup(cfg SetupConfig) error {
 		return fmt.Errorf("unable to setup logger: %w", err)
 	}
 
+	if !cfg.noLogrusBridge {
+		s.setupLogrusBridge()
+	}
+
 	if err := s.setupUI(cfg.UIConstructor); err != nil {
 		return fmt.Errorf("unable to setup UI: %w", err)
 	}
@@ -52,6 +57,19 @@ func (s *State) setupLogger(cx LoggerConstructor) error {
 
 	s.Logger = lgr
 	return nil
+}
+
+// setupLogrusBridge forwards logrus.StandardLogger() into the logger actually in use, so any wrapping done by the
+// constructor (e.g. redaction) applies to library entries too.
+func (s *State) setupLogrusBridge() {
+	if s.Logger == nil {
+		return
+	}
+	level := logger.DisabledLevel
+	if s.Config.Log != nil {
+		level = s.Config.Log.Level
+	}
+	stdLogrusBridge.attach(upstreamLogrus.StandardLogger(), s.Logger, level)
 }
 
 func (s *State) setupBus(cx BusConstructor) {
