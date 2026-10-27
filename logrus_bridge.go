@@ -1,10 +1,14 @@
 package clio
 
 import (
+	"fmt"
 	"io"
+	"net/url"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"unicode"
 
 	upstreamLogrus "github.com/sirupsen/logrus"
 
@@ -85,31 +89,71 @@ func (b *logrusBridge) Fire(entry *upstreamLogrus.Entry) error {
 		if dropBridgedField(k) {
 			continue
 		}
-		fields = append(fields, k, v)
+		fields = append(fields, sanitize(k), bridgeValue(v))
 	}
 	// set last so it wins over any existing "from" field
 	fields = append(fields, bridgeKey, bridgeVal)
 
 	l := (*dst).Nested(fields...)
+	msg := sanitize(entry.Message)
 	switch entry.Level {
 	case upstreamLogrus.PanicLevel, upstreamLogrus.FatalLevel, upstreamLogrus.ErrorLevel:
-		l.Error(entry.Message)
+		l.Error(msg)
 	case upstreamLogrus.WarnLevel:
-		l.Warn(entry.Message)
+		l.Warn(msg)
 	case upstreamLogrus.TraceLevel:
-		l.Trace(entry.Message)
+		l.Trace(msg)
 	default:
 		// libraries tend to be chatty at info, which is debug-level detail from the application's point of view
-		l.Debug(entry.Message)
+		l.Debug(msg)
 	}
 	return nil
 }
 
 // dropBridgedField filters fields that can carry secrets the redactor has no way of knowing about, such as
 // containerd's per-request HTTP headers (e.g. a registry session cookie in "response.header.set-cookie") and raw
-// token endpoint error bodies.
+// token endpoint error bodies. This is best effort: a library that formats a whole response into the message itself
+// (go.podman.io/image does this at debug) can't be filtered here.
 func dropBridgedField(key string) bool {
+	key = strings.ToLower(key)
 	return key == "body" || strings.HasPrefix(key, "request.header.") || strings.HasPrefix(key, "response.header.")
+}
+
+// bridgeValue keeps scalars and flattens errors and stringers, and replaces anything else with its type name. Libraries
+// attach whole structs that would otherwise be printed in full, e.g. containerd's "resp" field holds an *http.Response,
+// Set-Cookie headers included.
+func bridgeValue(v any) any {
+	switch vv := v.(type) {
+	case nil:
+		return nil
+	case *url.URL:
+		// String() would include any password in the userinfo
+		return sanitize(vv.Redacted())
+	case error, fmt.Stringer:
+		// fmt rather than calling the method directly so a nil receiver can't panic the logging call
+		return sanitize(fmt.Sprint(vv))
+	}
+	switch reflect.ValueOf(v).Kind() {
+	case reflect.String:
+		return sanitize(reflect.ValueOf(v).String())
+	case reflect.Bool,
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64:
+		return v
+	}
+	return fmt.Sprintf("<%T>", v)
+}
+
+// sanitize replaces control characters (except tabs) with spaces, so text that originates from a remote server can't
+// forge log lines or emit terminal escape sequences.
+func sanitize(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r != '\t' && unicode.IsControl(r) {
+			return ' '
+		}
+		return r
+	}, s)
 }
 
 type nopFormatter struct{}

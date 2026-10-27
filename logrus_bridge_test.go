@@ -1,7 +1,10 @@
 package clio
 
 import (
+	"errors"
 	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"testing"
 
@@ -53,9 +56,13 @@ func TestLogrusBridge_forwardsEntries(t *testing.T) {
 	src.WithFields(upstreamLogrus.Fields{
 		"response.status":            "401 Unauthorized",
 		"response.header.set-cookie": "sid=secret",
-		"request.header.cookie":      "sid=secret",
+		"Request.Header.Cookie":      "sid=secret",
 		"body":                       "raw token endpoint body",
-	}).Debug("lib-response")
+		"resp":                       &http.Response{Header: http.Header{"Set-Cookie": {"sid=secret"}}},
+		"url":                        &url.URL{Scheme: "https", User: url.UserPassword("u", "secret"), Host: "registry"},
+		"err":                        errors.New("bad\nfake=line"),
+		"count":                      3,
+	}).Debug("lib-response \x1b[31mred\nforged")
 
 	entries := captured.AllEntries()
 	require.Len(t, entries, 5)
@@ -68,21 +75,26 @@ func TestLogrusBridge_forwardsEntries(t *testing.T) {
 		{"lib-info", upstreamLogrus.DebugLevel},
 		{"lib-trace", upstreamLogrus.TraceLevel},
 		{"lib-error", upstreamLogrus.ErrorLevel},
-		{"lib-response", upstreamLogrus.DebugLevel},
+		{"lib-response  [31mred forged", upstreamLogrus.DebugLevel},
 	}
 	for i, w := range want {
 		assert.Equal(t, w.msg, entries[i].Message)
 		assert.Equal(t, w.level, entries[i].Level, w.msg)
-		assert.Equal(t, bridgeVal, entries[i].Data[bridgeKey], "bridge tag should win over any existing from field")
+		assert.Equal(t, bridgeVal, entries[i].Data[bridgeKey], w.msg)
 	}
+	assert.Equal(t, bridgeVal, entries[3].Data[bridgeKey], "bridge tag should win over an existing from field")
 
 	assert.Equal(t, "xattr-err", entries[0].Data["errors"])
 
 	resp := entries[4].Data
 	assert.Equal(t, "401 Unauthorized", resp["response.status"])
 	assert.NotContains(t, resp, "response.header.set-cookie")
-	assert.NotContains(t, resp, "request.header.cookie")
+	assert.NotContains(t, resp, "Request.Header.Cookie")
 	assert.NotContains(t, resp, "body")
+	assert.Equal(t, "<*http.Response>", resp["resp"])
+	assert.Equal(t, "https://u:xxxxx@registry", resp["url"])
+	assert.Equal(t, "bad fake=line", resp["err"])
+	assert.Equal(t, 3, resp["count"])
 
 	assert.Equal(t, io.Discard, src.Out)
 }
