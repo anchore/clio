@@ -2,6 +2,7 @@ package clio
 
 import (
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -174,4 +175,27 @@ func TestUICollection_Replace_ErrorDuringSetup(t *testing.T) {
 	err := c.Replace(ui3)
 	require.Error(t, err)
 	assert.EqualError(t, err, "unable to setup UI replacement: setup error")
+}
+
+func TestUICollection_Handle_ConcurrentReplace(t *testing.T) {
+	// handle must not read collection state outside the lock while replace swaps the active UI.
+	// Uses mockUI rather than uiMocker so a race report cannot come from the mock's own mutex.
+	c := NewUICollection(mockUI{})
+	require.NoError(t, c.Setup(&mockUnsubscribable{}))
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 200; i++ {
+			_ = c.Handle(partybus.Event{})
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 200; i++ {
+			_ = c.Replace(mockUI{})
+		}
+	}()
+	wg.Wait()
 }
