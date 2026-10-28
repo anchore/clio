@@ -88,5 +88,9 @@ func (s *State) setupUI(cx UIConstructor) error {
 	}
 	var err error
 	s.UI, err = cx(s.Config)
+	if s.UI == nil {
+		// a typed-nil collection would pass the eventloop's nil check and panic on first use
+		s.UI = NewUICollection()
+	}
 	return err
 }
