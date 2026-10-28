@@ -591,3 +591,11 @@ func TestHandleExitError(t *testing.T) {
 		})
 	}
 }
+
+func Test_State_setupUI_NilCollection(t *testing.T) {
+	s := State{}
+	require.NoError(t, s.setupUI(func(Config) (*UICollection, error) { return nil, nil }))
+	require.NotNil(t, s.UI)
+	// the eventloop calls through the UI interface, so a typed-nil here would panic
+	assert.NoError(t, s.UI.Setup(&mockUnsubscribable{}))
+}
